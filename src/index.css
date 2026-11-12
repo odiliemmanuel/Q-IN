@@ -1,0 +1,14 @@
+:root {
+  --primary-color: #0A3D62;
+  --secondary-color: #E0E7FF;
+  --accent-color: #3B82F6;
+  --background-color: #FAFAFA;
+  --foreground-color: #1F2937;
+  --card-color: #FFFFFF;
+  --border-color: #D1D5DB;
+  --muted-color: #6B7280;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
