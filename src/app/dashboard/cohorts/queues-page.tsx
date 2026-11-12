@@ -125,7 +125,7 @@ export function QueuesPage() {
         />
         <KpiTile
           icon="Layout"
-          value={queues.reduce((sum, q) => sum + (q.currentOccupancy || 0), 0)}>
+          value={queues.reduce((sum, q) => sum + (q.currentOccupancy || 0), 0)}
           label="Total Capacity"
           status="good"
         />

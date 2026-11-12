@@ -14,7 +14,7 @@ export function LayoutHeader({
   toggleSidebar: () => void
   theme: 'light' | 'dark'
   setTheme: (mode: 'light' | 'dark') => void
-  user: typeof useAuthStore.getState()['user']
+  user: { id: string; name: string; email: string; role: 'NATIVE' | 'ADMIN' | 'SUPER_ADMIN'; emailVerified: boolean; createdAt: string; }
   onLogout: () => void
 }) {
   const { sidebarOpen, setSidebarOpen } = useUIStore()
