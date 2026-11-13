@@ -188,11 +188,7 @@ export function QueueDetailPage() {
                 >
                   Call next
                 </Button>
-              ) : (
-                <Badge tone="success" dot>
-                  Live
-                </Badge>
-              )
+              ) : null
             }
           />
 

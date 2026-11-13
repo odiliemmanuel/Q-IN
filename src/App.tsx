@@ -8,6 +8,7 @@ import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
+import { LandingPage } from './pages/LandingPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { QueuesPage } from './pages/QueuesPage'
 import { QueueDetailPage } from './pages/QueueDetailPage'
@@ -27,18 +28,11 @@ function ProtectedRoute({ children, roles }: { children: ReactNode; roles?: Role
   return <>{children}</>
 }
 
-function HomeRedirect() {
-  const user = useAuthStore((state) => state.user)
-
-  if (!user) return <Navigate to="/login" replace />
-  return <Navigate to={user.emailVerified ? '/app/dashboard' : '/verify-email'} replace />
-}
-
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<HomeRedirect />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />

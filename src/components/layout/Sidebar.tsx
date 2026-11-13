@@ -84,7 +84,6 @@ export function Sidebar() {
 
         <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-900/60">
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-live rounded-full bg-emerald-500" />
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Demo workspace
             </p>

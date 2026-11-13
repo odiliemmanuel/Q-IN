@@ -66,9 +66,8 @@ export function DashboardPage() {
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ring-white/20">
-                  <span className="h-1.5 w-1.5 animate-live rounded-full bg-emerald-400" />
-                  Live · in queue
+                <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ring-white/20">
+                  In queue
                 </span>
                 <span className="truncate text-[12px] text-white/70">
                   {cohorts.find((cohort) => cohort.id === activeQueue.cohortId)?.name}
