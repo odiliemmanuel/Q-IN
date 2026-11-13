@@ -20,7 +20,7 @@ import {
 /* Button                                                              */
 /* ------------------------------------------------------------------ */
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success'
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success' | 'white' | 'outlineInverse' | 'ghostInverse'
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon'
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
@@ -34,6 +34,12 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
     'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white',
   danger: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 disabled:bg-rose-300',
   success: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800',
+  white:
+    'bg-white text-brand-700 shadow-sm hover:bg-brand-50 active:bg-brand-100 disabled:bg-white/60 disabled:text-brand-700/50 disabled:shadow-none',
+  outlineInverse:
+    'border border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/25 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/50',
+  ghostInverse:
+    'text-white hover:bg-white/15 active:bg-white/20 disabled:text-white/50',
 }
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {

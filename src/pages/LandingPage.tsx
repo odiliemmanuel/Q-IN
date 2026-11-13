@@ -420,7 +420,7 @@ export function LandingPage() {
                     <Link to="/app/dashboard">
                       <Button
                         size="lg"
-                        className="bg-white text-brand-700 hover:bg-white/90"
+                        variant="white"
                         rightIcon={<IconArrowRight className="h-4 w-4" />}
                       >
                         Open your workspace
@@ -431,18 +431,14 @@ export function LandingPage() {
                       <Link to="/register">
                         <Button
                           size="lg"
-                          className="bg-white text-brand-700 hover:bg-white/90"
+                          variant="white"
                           rightIcon={<IconArrowRight className="h-4 w-4" />}
                         >
                           Create free account
                         </Button>
                       </Link>
                       <Link to="/login">
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          className="border-white/25 bg-white/10 text-white hover:bg-white/20 dark:border-white/25 dark:bg-white/10 dark:text-white"
-                        >
+                        <Button size="lg" variant="outlineInverse">
                           Sign in
                         </Button>
                       </Link>

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { QueueCard } from '../components/QueueCard'
-import { Avatar, Badge, Button, Card, CardHeader, EmptyState, Progress } from '../components/ui'
+import { Avatar, Button, Card, CardHeader, EmptyState, Progress } from '../components/ui'
 import {
   IconArrowRight,
   IconChevronRight,
@@ -100,16 +100,12 @@ export function DashboardPage() {
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Link to={`/app/queues/${activeQueue.id}`}>
-                <Button
-                  className="bg-white text-brand-700 hover:bg-white/90"
-                  rightIcon={<IconArrowRight className="h-4 w-4" />}
-                >
+                <Button variant="white" rightIcon={<IconArrowRight className="h-4 w-4" />}>
                   View queue
                 </Button>
               </Link>
               <Button
-                variant="ghost"
-                className="text-white hover:bg-white/15"
+                variant="ghostInverse"
                 onClick={() => {
                   leaveQueue()
                   notify('You left the queue.', 'info')
@@ -244,9 +240,9 @@ export function DashboardPage() {
           </Card>
 
           <Card className="border-slate-200 bg-slate-900 p-5 text-white dark:border-slate-800">
-            <Badge tone="brand" className="bg-white/10 text-white ring-white/20">
+            <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white ring-1 ring-inset ring-white/20">
               Tip
-            </Badge>
+            </span>
             <p className="mt-3 text-[13px] leading-relaxed text-white/80">
               Keep this tab open. Positions refresh automatically so you never miss your turn.
             </p>
