@@ -1,208 +1,143 @@
-import create from 'zustand'
-import { type User } from '../types/api'
+import { create } from 'zustand'
+import type { Role, User } from '../lib/types'
+import { loadJSON, saveJSON } from '../lib/persist'
+import { uid } from '../lib/utils'
 
-/**
- * Auth Store - Zustand store for authentication state
- */
+const USER_KEY = 'qin:user'
 
-export interface AuthState {
-  user: User | null
-  tokens: any | null // AuthTokens
-  isLoading: boolean
-  isAuthenticated: boolean
-  role: 'NATIVE' | 'ADMIN' | 'SUPER_ADMIN'
-  redirectTo: string | null
-  setUser: (user: User | null) => void
-  setTokens: (tokens: any | null) => void
-  setLoading: (isLoading: boolean) => void
-  setAuthenticated: (isAuthenticated: boolean) => void
-  setRole: (role: 'NATIVE' | 'ADMIN' | 'SUPER_ADMIN') => void
-  setRedirectTo: (path: string | null) => void
-  login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string, cohortId?: string) => Promise<void>
-  verifyEmail: (code: string) => Promise<void>
-  logout: () => void
-  refreshTokens: () => Promise<void>
+export const DEMO_ACCOUNTS: Array<{ role: Role; email: string; name: string; label: string }> = [
+  { role: 'NATIVE', email: 'member@qin.app', name: 'Ada Okafor', label: 'Member' },
+  { role: 'ADMIN', email: 'admin@qin.app', name: 'Tunde Bello', label: 'Admin' },
+  { role: 'SUPER_ADMIN', email: 'super@qin.app', name: 'Zainab Musa', label: 'Super admin' },
+]
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function roleForEmail(email: string): Role {
+  const value = email.toLowerCase()
+  if (value.startsWith('super')) return 'SUPER_ADMIN'
+  if (value.startsWith('admin')) return 'ADMIN'
+  return 'NATIVE'
 }
 
-const useAuthStore = create<AuthState>((set, get) => ({
-  user: getStoredUser() || null,
-  tokens: JSON.parse(localStorage.getItem('q-in:tokens') || 'null'),
-  isLoading: false,
-  isAuthenticated: !!getStoredUser(),
-  role: 'NATIVE', // default role
-  redirectTo: null,
+function nameForEmail(email: string): string {
+  const handle = email.split('@')[0] ?? 'member'
+  return handle
+    .split(/[._-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
-  setUser: (user: User | null) => {
-    set({ user })
-    if (user) {
-      setStoredUser(user)
-    } else {
-      clearStoredUser()
+interface AuthState {
+  user: User | null
+  loading: boolean
+  error: string | null
+  login: (email: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string) => Promise<void>
+  loginDemo: (role: Role) => void
+  verifyEmail: () => void
+  updateProfile: (patch: Partial<Pick<User, 'name'>>) => void
+  logout: () => void
+  clearError: () => void
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: loadJSON<User | null>(USER_KEY, null),
+  loading: false,
+  error: null,
+
+  login: async (email, password) => {
+    set({ loading: true, error: null })
+    await sleep(550)
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      set({ loading: false, error: 'Enter a valid email address.' })
+      return
     }
+    if (password.length < 6) {
+      set({ loading: false, error: 'Password must be at least 6 characters.' })
+      return
+    }
+
+    const demo = DEMO_ACCOUNTS.find((account) => account.email === email.toLowerCase())
+    const user: User = {
+      id: demo ? `demo_${demo.role.toLowerCase()}` : uid('usr'),
+      name: demo?.name ?? nameForEmail(email),
+      email: email.toLowerCase(),
+      role: demo?.role ?? roleForEmail(email),
+      emailVerified: true,
+      createdAt: new Date().toISOString(),
+    }
+
+    saveJSON(USER_KEY, user)
+    set({ user, loading: false, error: null })
   },
 
-  setTokens: (tokens: any | null) => {
-    set({ tokens })
-    if (tokens) {
-      localStorage.setItem('q-in:tokens', JSON.stringify(tokens))
-    } else {
-      localStorage.removeItem('q-in:tokens')
+  register: async (name, email, password) => {
+    set({ loading: true, error: null })
+    await sleep(650)
+
+    if (name.trim().length < 2) {
+      set({ loading: false, error: 'Please enter your full name.' })
+      return
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      set({ loading: false, error: 'Enter a valid email address.' })
+      return
+    }
+    if (password.length < 6) {
+      set({ loading: false, error: 'Password must be at least 6 characters.' })
+      return
+    }
+
+    const user: User = {
+      id: uid('usr'),
+      name: name.trim(),
+      email: email.toLowerCase(),
+      role: 'NATIVE',
+      emailVerified: false,
+      createdAt: new Date().toISOString(),
+    }
+
+    saveJSON(USER_KEY, user)
+    set({ user, loading: false, error: null })
   },
 
-  setLoading: (isLoading: boolean) => set({ isLoading }),
-
-  setAuthenticated: (isAuthenticated: boolean) => set({ isAuthenticated }),
-
-  setRole: (role: 'NATIVE' | 'ADMIN' | 'SUPER_ADMIN') => set({ role }),
-
-  setRedirectTo: (path: string | null) => set({ redirectTo: path }),
-
-  login: async (email: string, password: string) => {
-    set({ isLoading: true })
-    try {
-      const data = await authApi.login({ email, password })
-      setTokens(data.tokens || data)
-      // Set user from tokens data
-      const user: User = {
-        id: data.user?.id || data.id,
-        name: data.user?.name || data.name || '',
-        email: data.user?.email || data.email || '',
-        role: data.user?.role || data.role || 'NATIVE',
-        emailVerified: data.user?.emailVerified || data.emailVerified || false,
-        createdAt: data.user?.createdAt || data.createdAt || new Date().toISOString(),
-      }
-      setUser(user)
-      setRole(data.user?.role || data.role || 'NATIVE')
-      setAuthenticated(true)
-
-      // Set redirect based on role
-      const role = get().role
-      let redirectPath = '/dashboard/cohorts/queues' // default
-
-      if (role === 'SUPER_ADMIN') {
-        redirectPath = '/dashboard/super-admin'
-      } else if (role === 'ADMIN') {
-        redirectPath = '/dashboard/admin'
-      } else if (role === 'NATIVE') {
-        redirectPath = '/dashboard/cohorts/queues'
-      }
-
-      setRedirectTo(redirectPath)
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Login failed')
-    } finally {
-      set({ isLoading: false })
+  loginDemo: (role) => {
+    const account = DEMO_ACCOUNTS.find((item) => item.role === role) ?? DEMO_ACCOUNTS[0]
+    const user: User = {
+      id: `demo_${role.toLowerCase()}`,
+      name: account.name,
+      email: account.email,
+      role,
+      emailVerified: true,
+      createdAt: new Date().toISOString(),
     }
+    saveJSON(USER_KEY, user)
+    set({ user, error: null })
   },
 
-  register: async (name: string, email: string, password: string, cohortId?: string) => {
-    set({ isLoading: true })
-    try {
-      const data = await authApi.register({ name, email, password, cohortId })
-      setTokens(data.tokens || data)
-      const user: User = {
-        id: data.user?.id || data.id,
-        name: data.user?.name || data.name || '',
-        email: data.user?.email || data.email || '',
-        role: data.user?.role || data.role || 'NATIVE',
-        emailVerified: data.user?.emailVerified || data.emailVerified || false,
-        createdAt: data.user?.createdAt || data.createdAt || new Date().toISOString(),
-      }
-      setUser(user)
-      setRole(data.user?.role || data.role || 'NATIVE')
-      setAuthenticated(true)
-
-      const role = get().role
-      let redirectPath = '/dashboard/cohorts/queues'
-
-      if (role === 'SUPER_ADMIN') {
-        redirectPath = '/dashboard/super-admin'
-      } else if (role === 'ADMIN') {
-        redirectPath = '/dashboard/admin'
-      } else if (role === 'NATIVE') {
-        redirectPath = '/dashboard/cohorts/queues'
-      }
-
-      setRedirectTo(redirectPath)
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Registration failed')
-    } finally {
-      set({ isLoading: false })
-    }
+  verifyEmail: () => {
+    const user = get().user
+    if (!user) return
+    const next = { ...user, emailVerified: true }
+    saveJSON(USER_KEY, next)
+    set({ user: next })
   },
 
-  verifyEmail: async (code: string) => {
-    set({ isLoading: true })
-    try {
-      const data = await authApi.verifyEmail({ code })
-      setTokens(data.tokens || data)
-      const user: User = {
-        id: data.user?.id || data.id,
-        name: data.user?.name || data.name || '',
-        email: data.user?.email || data.email || '',
-        role: data.user?.role || data.role || 'NATIVE',
-        emailVerified: data.user?.emailVerified || data.emailVerified || false,
-        createdAt: data.user?.createdAt || data.createdAt || new Date().toISOString(),
-      }
-      setUser(user)
-      setRole(data.user?.role || data.role || 'NATIVE')
-      setAuthenticated(true)
-
-      const role = get().role
-      let redirectPath = '/dashboard/cohorts/queues'
-
-      if (role === 'SUPER_ADMIN') {
-        redirectPath = '/dashboard/super-admin'
-      } else if (role === 'ADMIN') {
-        redirectPath = '/dashboard/admin'
-      } else if (role === 'NATIVE') {
-        redirectPath = '/dashboard/cohorts/queues'
-      }
-
-      setRedirectTo(redirectPath)
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Email verification failed')
-    } finally {
-      set({ isLoading: false })
-    }
+  updateProfile: (patch) => {
+    const user = get().user
+    if (!user) return
+    const next = { ...user, ...patch }
+    saveJSON(USER_KEY, next)
+    set({ user: next })
   },
 
   logout: () => {
-    disconnectWebSocket()
-    setTokens(null)
-    setUser(null)
-    setRole('NATIVE')
-    setAuthenticated(false)
-    setRedirectTo(null)
-    localStorage.removeItem('q-in:tokens')
-    localStorage.removeItem('q-in:user')
-    window.dispatchEvent(new Event('q-in:logout'))
+    localStorage.removeItem(USER_KEY)
+    set({ user: null, error: null })
   },
 
-  refreshTokens: async () => {
-    set({ isLoading: true })
-    try {
-      const data = await authApi.refreshToken()
-      setTokens(data.tokens || data)
-      const user: User = {
-        id: data.user?.id || data.id,
-        name: data.user?.name || data.name || '',
-        email: data.user?.email || data.email || '',
-        role: data.user?.role || data.role || 'NATIVE',
-        emailVerified: data.user?.emailVerified || data.emailVerified || false,
-        createdAt: data.user?.createdAt || data.createdAt || new Date().toISOString(),
-      }
-      setUser(user)
-      setRole(data.user?.role || data.role || 'NATIVE')
-      setAuthenticated(true)
-    } catch (error) {
-      logout()
-    } finally {
-      set({ isLoading: false })
-    }
-  },
+  clearError: () => set({ error: null }),
 }))
-
-export default useAuthStore

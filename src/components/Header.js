@@ -1,7 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useUIStore } from '../store';
-import { Logo } from 'lucide-react';
-export function Header() {
-    const { toggleSidebar, theme, setTheme } = useUIStore();
-    return (_jsxs("header", { className: "flex items-center justify-between px-6 py-4 bg-background border-b border-border bg-opacity-90 backdrop-blur-sm transition-colors duration-200", children: [_jsxs("div", { className: "flex items-center gap-3", children: [_jsx(Logo, { className: "w-8 h-8" }), _jsx("h1", { className: "text-xl font-semibold text-primary", children: "PropertyFlow" })] }), _jsxs("div", { className: "flex items-center gap-4", children: [_jsx("button", { onClick: toggleSidebar, className: "p-2 rounded hover:bg-border transition-colors", "aria-label": "Toggle sidebar", children: theme === 'dark' ? '☀️' : '🌙' }), _jsx("button", { onClick: () => setTheme(theme === 'light' ? 'dark' : 'light'), className: "p-2 rounded hover:bg-border transition-colors", "aria-label": "Toggle theme", children: theme === 'light' ? 'Dark' : 'Light' })] }), _jsx("div", { className: "flex items-center gap-3", children: _jsxs("button", { className: "relative", children: [_jsx("img", { src: "/avatars/avatar-1.jpg", alt: "User", className: "w-8 h-8 rounded-full" }), _jsx("div", { className: "absolute right-0 top-2 w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-semibold text-white", children: "JP" })] }) })] }));
-}
