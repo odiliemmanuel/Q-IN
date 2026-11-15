@@ -100,9 +100,9 @@ export function DashboardPage() {
               </Link>
               <Button
                 variant="ghostInverse"
-                onClick={() => {
-                  leaveQueue()
-                  notify('You left the queue.', 'info')
+                onClick={async () => {
+                  await leaveQueue()
+                  if (!useQueueStore.getState().activeTicket) notify('You left the queue.', 'info')
                 }}
               >
                 Leave queue

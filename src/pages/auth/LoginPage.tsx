@@ -60,21 +60,23 @@ export function LoginPage() {
         />
 
         <Input
-          label="Password"
-          name="password"
+          label="PIN"
+          name="pin"
           type={showPassword ? 'text' : 'password'}
+          inputMode="numeric"
           autoComplete="current-password"
-          placeholder="Enter your password"
+          placeholder="Your 4-digit PIN"
+          maxLength={4}
           icon={<IconLock className="h-4 w-4" />}
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => setPassword(event.target.value.replace(/\D/g, '').slice(0, 4))}
           required
           trailing={
             <button
               type="button"
               onClick={() => setShowPassword((value) => !value)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? 'Hide PIN' : 'Show PIN'}
             >
               {showPassword ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
             </button>
@@ -105,8 +107,7 @@ export function LoginPage() {
 
         <Button type="submit" size="lg" className="w-full" loading={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
-        </Button>
-      </form>
+        </Button>      </form>
     </AuthLayout>
   )
 }

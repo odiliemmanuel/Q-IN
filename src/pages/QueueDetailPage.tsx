@@ -99,21 +99,28 @@ export function QueueDetailPage() {
     setShowQr(true)
   }
 
-  const joinWithGateCode = (event: React.FormEvent) => {
+  const [gateBusy, setGateBusy] = useState(false)
+
+  const joinWithGateCode = async (event: React.FormEvent) => {
     event.preventDefault()
     setGateError(null)
-    const result: JoinResult = useQueueStore
-      .getState()
-      .joinByCode(gateCode, user?.name ?? 'You', user?.avatar)
-    if (result === 'joined') {
-      notify(joinResultMessage(result), 'success')
-      return
+    setGateBusy(true)
+    try {
+      const result: JoinResult = await useQueueStore
+        .getState()
+        .joinByCode(gateCode, user?.name ?? 'You', user?.avatar)
+      if (result === 'joined') {
+        notify(joinResultMessage(result), 'success')
+        return
+      }
+      if (result === 'already-in-queue') {
+        notify('You are already in another queue.', 'info')
+        return
+      }
+      setGateError(useQueueStore.getState().lastJoinError ?? joinResultMessage(result))
+    } finally {
+      setGateBusy(false)
     }
-    if (result === 'already-in-queue') {
-      notify('You are already in another queue.', 'info')
-      return
-    }
-    setGateError(joinResultMessage(result))
   }
 
   return (
@@ -156,9 +163,9 @@ export function QueueDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  leaveQueue()
-                  notify('You left the queue.', 'info')
+                onClick={async () => {
+                  await leaveQueue()
+                  if (!useQueueStore.getState().activeTicket) notify('You left the queue.', 'info')
                 }}
               >
                 Leave queue
@@ -415,7 +422,7 @@ export function QueueDetailPage() {
                   required
                 />
               </div>
-              <Button type="submit">Join queue</Button>
+              <Button type="submit" loading={gateBusy}>Join queue</Button>
             </form>
             {gateError ? (
               <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">

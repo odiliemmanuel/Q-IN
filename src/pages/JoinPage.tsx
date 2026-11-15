@@ -33,6 +33,7 @@ export function JoinPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [working, setWorking] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -59,9 +60,9 @@ export function JoinPage() {
   )
 
   const joinWith = useCallback(
-    (rawCode: string): Parameters<typeof joinResultMessage>[0] => {
+    async (rawCode: string): Promise<Parameters<typeof joinResultMessage>[0]> => {
       const store = useQueueStore.getState()
-      const result = store.joinByCode(extractCode(rawCode), user?.name ?? 'You', user?.avatar)
+      const result = await store.joinByCode(extractCode(rawCode), user?.name ?? 'You', user?.avatar)
       finish(result)
       return result
     },
@@ -74,12 +75,14 @@ export function JoinPage() {
   useEffect(() => {
     if (!urlCode || autoJoinedRef.current) return
     autoJoinedRef.current = true
-    const result = joinWith(urlCode)
-    // On success we navigate away to the queue, so only clean the URL in place
-    // when the join failed and the member stays on this page.
-    if (result !== 'joined' && result !== 'already-in-queue') {
-      setSearchParams({}, { replace: true })
-    }
+    void (async () => {
+      const result = await joinWith(urlCode)
+      // On success we navigate away to the queue, so only clean the URL in place
+      // when the join failed and the member stays on this page.
+      if (result !== 'joined' && result !== 'already-in-queue') {
+        setSearchParams({}, { replace: true })
+      }
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlCode])
 
@@ -148,14 +151,22 @@ export function JoinPage() {
     if (next === 'scan') void startScan()
   }
 
-  const submitCode = (event: React.FormEvent) => {
+  const submitCode = async (event: React.FormEvent) => {
     event.preventDefault()
     setStatus(null)
     if (!code.trim()) {
       setStatus('Enter the code shown by the queue admin.')
       return
     }
-    joinWith(code)
+    setWorking(true)
+    try {
+      const result = await joinWith(code)
+      if (result !== 'joined' && result !== 'already-in-queue') {
+        setStatus(useQueueStore.getState().lastJoinError ?? joinResultMessage(result))
+      }
+    } finally {
+      setWorking(false)
+    }
   }
 
   return (
@@ -220,7 +231,7 @@ export function JoinPage() {
                   onChange={(event) => setCode(event.target.value)}
                   required
                 />
-                <Button type="submit" size="lg" className="w-full">
+                <Button type="submit" size="lg" className="w-full" loading={working}>
                   Join queue
                 </Button>
               </form>

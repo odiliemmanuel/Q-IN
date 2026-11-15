@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Button, Input } from '../../components/ui'
+import { Button, Input, Select } from '../../components/ui'
 import { FaceCapture } from '../../components/FaceCapture'
 import { IconArrowLeft, IconArrowRight, IconEye, IconEyeOff, IconLock, IconMail, IconSparkles, IconUser } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
+import { fetchCohorts, type BackendCohort, type Gender } from '../../lib/api'
 import { AuthLayout } from './AuthLayout'
 
 export function RegisterPage() {
@@ -16,34 +17,75 @@ export function RegisterPage() {
   const notify = useUiStore((state) => state.notify)
 
   const [step, setStep] = useState<1 | 2>(1)
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [pin, setPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
+  const [gender, setGender] = useState<Gender | ''>('')
+  const [cohortId, setCohortId] = useState('')
+  const [cohorts, setCohorts] = useState<BackendCohort[]>([])
+  const [cohortsError, setCohortsError] = useState<string | null>(null)
   const [agreed, setAgreed] = useState(true)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
+
+  // Cohorts come from the backend (public endpoint) and are required to sign up.
+  useEffect(() => {
+    let cancelled = false
+    fetchCohorts()
+      .then((list) => {
+        if (cancelled) return
+        setCohorts(list)
+        setCohortsError(null)
+        if (list.length && !cohortId) setCohortId(list[0].id)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setCohortsError(
+          err instanceof Error && err.message
+            ? `Could not load cohorts: ${err.message}`
+            : 'Could not load cohorts right now — the backend may be waking up. Retrying…',
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const goStep2 = (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
     setLocalError(null)
 
-    if (name.trim().length < 2) {
-      setLocalError('Please enter your full name.')
+    if (firstName.trim().length < 2) {
+      setLocalError('Please enter your first name.')
+      return
+    }
+    if (lastName.trim().length < 2) {
+      setLocalError('Please enter your last name.')
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setLocalError('Enter a valid email address.')
       return
     }
-    if (password.length < 6) {
-      setLocalError('Password must be at least 6 characters.')
+    if (!/^\d{4}$/.test(pin)) {
+      setLocalError('Your PIN must be exactly 4 digits.')
       return
     }
-    if (password !== confirm) {
-      setLocalError('Passwords do not match.')
+    if (pin !== confirmPin) {
+      setLocalError('PINs do not match.')
+      return
+    }
+    if (gender !== 'MALE' && gender !== 'FEMALE') {
+      setLocalError('Select your gender.')
+      return
+    }
+    if (!cohortId) {
+      setLocalError('Choose your cohort to continue.')
       return
     }
     if (!agreed) {
@@ -57,15 +99,22 @@ export function RegisterPage() {
 
   const handleSubmit = async (confirmedAvatar?: string) => {
     const useAvatar = confirmedAvatar ?? avatar
-    if (!useAvatar) {
-      setLocalError('Add a photo so we can create your caricature.')
-      return
-    }
     clearError()
     setLocalError(null)
-    await register(name, email, password, useAvatar)
+    await register(
+      {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, ''),
+        pin,
+        email: email.trim().toLowerCase(),
+        gender: (gender || 'MALE') as Gender,
+        cohortId,
+      },
+      useAvatar,
+    )
     if (!useAuthStore.getState().user) return
-    notify('Account created — verify your email to continue')
+    notify('Account created — check your inbox for the verification code')
     navigate('/verify-email')
   }
 
@@ -88,16 +137,27 @@ export function RegisterPage() {
     >
       {step === 1 ? (
         <form onSubmit={goStep2} className="space-y-4" noValidate>
-          <Input
-            label="Full name"
-            name="name"
-            autoComplete="name"
-            placeholder="Ada Okafor"
-            icon={<IconUser className="h-4 w-4" />}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="First name"
+              name="firstName"
+              autoComplete="given-name"
+              placeholder="Ada"
+              icon={<IconUser className="h-4 w-4" />}
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              required
+            />
+            <Input
+              label="Last name"
+              name="lastName"
+              autoComplete="family-name"
+              placeholder="Okafor"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              required
+            />
+          </div>
 
           <Input
             label="Email address"
@@ -111,40 +171,82 @@ export function RegisterPage() {
             required
           />
 
-          <Input
-            label="Password"
-            name="password"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete="new-password"
-            placeholder="At least 6 characters"
-            icon={<IconLock className="h-4 w-4" />}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            hint="Use 6 or more characters."
-            trailing={
-              <button
-                type="button"
-                onClick={() => setShowPassword((value) => !value)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
-              </button>
-            }
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="PIN"
+              name="pin"
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              autoComplete="new-password"
+              placeholder="••••"
+              maxLength={4}
+              icon={<IconLock className="h-4 w-4" />}
+              value={pin}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+              hint="4 digits."
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPin((value) => !value)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+                >
+                  {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
+                </button>
+              }
+            />
+            <Input
+              label="Confirm PIN"
+              name="confirmPin"
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              autoComplete="new-password"
+              placeholder="Repeat PIN"
+              maxLength={4}
+              icon={<IconLock className="h-4 w-4" />}
+              value={confirmPin}
+              onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+            />
+          </div>
 
-          <Input
-            label="Confirm password"
-            name="confirm"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete="new-password"
-            placeholder="Repeat your password"
-            icon={<IconLock className="h-4 w-4" />}
-            value={confirm}
-            onChange={(event) => setConfirm(event.target.value)}
-            required
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Gender"
+              name="gender"
+              value={gender}
+              onChange={(event) => setGender(event.target.value as Gender | '')}
+              required
+            >
+              <option value="">Select…</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+            </Select>
+            <Select
+              label="Cohort"
+              name="cohort"
+              value={cohortId}
+              onChange={(event) => setCohortId(event.target.value)}
+              required
+            >
+              {cohorts.length ? (
+                cohorts.map((cohort) => (
+                  <option key={cohort.id} value={cohort.id}>
+                    {cohort.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">{cohortsError ? 'Loading…' : 'No cohorts yet'}</option>
+              )}
+            </Select>
+          </div>
+
+          {cohortsError ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-medium text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              {cohortsError}
+            </p>
+          ) : null}
 
           <label className="flex items-start gap-2.5 text-[13px] text-slate-600 dark:text-slate-400">
             <input
@@ -165,7 +267,13 @@ export function RegisterPage() {
             </p>
           ) : null}
 
-          <Button type="submit" size="lg" className="w-full" rightIcon={<IconArrowRight className="h-4 w-4" />}>
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full"
+            rightIcon={<IconArrowRight className="h-4 w-4" />}
+            disabled={Boolean(cohortsError) || cohorts.length === 0}
+          >
             Next: add your photo
           </Button>
         </form>
@@ -198,7 +306,7 @@ export function RegisterPage() {
             </Button>
             <p className="flex flex-1 items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400">
               <IconSparkles className="h-3.5 w-3.5 text-brand-600" />
-              Everything stays on your device — only the caricature is saved.
+              Everything stays on your device — only the caricature is uploaded.
             </p>
           </div>
         </div>

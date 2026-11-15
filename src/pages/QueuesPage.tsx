@@ -60,7 +60,7 @@ export function QueuesPage() {
     })
   }, [queues, cohorts, q, cohortFilter, tab, activeTicket])
 
-  const submitQueue = (event: React.FormEvent) => {
+  const submitQueue = async (event: React.FormEvent) => {
     event.preventDefault()
     if (form.name.trim().length < 3) {
       setFormError('Give the queue a name of at least 3 characters.')
@@ -70,7 +70,7 @@ export function QueuesPage() {
       setFormError('Choose a cohort for this queue.')
       return
     }
-    addQueue({
+    await addQueue({
       name: form.name.trim(),
       cohortId: form.cohortId,
       description: form.description.trim() || 'No description yet.',
