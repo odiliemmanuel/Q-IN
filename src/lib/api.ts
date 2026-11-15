@@ -255,7 +255,7 @@ export interface BackendCohort {
 }
 
 export async function fetchCohorts(): Promise<BackendCohort[]> {
-  return request<BackendCohort[]>('/api/v1/cohorts/cohorts', { auth: false })
+  return request<BackendCohort[]>('/api/v1/cohorts', { auth: false })
 }
 
 // ---------------------------------------------------------------------------
