@@ -10,7 +10,7 @@
  * generous timeout and callers surface a "waking the backend" hint.
  */
 
-export const API_BASE = (import.meta.env.VITE_API_URL ?? 'https://queueni.onrender.com').replace(/\/$/, '')
+export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 const TOKENS_KEY = 'qin:tokens'
 const REQUEST_TIMEOUT_MS = 90_000
