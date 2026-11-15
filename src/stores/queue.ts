@@ -4,6 +4,7 @@ import { loadJSON, saveJSON } from '../lib/persist'
 import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
 import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, fetchCohorts, type BackendQueueUser } from '../lib/api'
+import { cohortsApi } from '../api'
 
 const KEY = 'qin:data:v2'
 const STORAGE_VERSION = 2
@@ -379,18 +380,27 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
-  addCohort: (name, description) => {
+  addCohort: async (name, description) => {
     const { cohorts, queues, activeTicket } = get()
-    const nextCohorts: Cohort[] = [
-      {
-        id: uid('cohort'),
-        name,
-        description,
-        memberCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      ...cohorts,
-    ]
+    const newCohort = {
+      id: uid('cohort'),
+      name,
+      description,
+      memberCount: 0,
+      createdAt: new Date().toISOString(),
+    }
+
+    // Try to create on backend if authenticated
+    if (loadTokens()) {
+      try {
+        const backendCohort = await cohortsApi.createCohort({ name, description })
+        newCohort.id = backendCohort.id
+      } catch {
+        // Backend creation failed, but keep local cohort
+      }
+    }
+
+    const nextCohorts: Cohort[] = [newCohort, ...cohorts]
     persist({ cohorts: nextCohorts, queues, activeTicket })
     set({ cohorts: nextCohorts })
   },
