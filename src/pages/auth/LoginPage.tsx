@@ -15,9 +15,9 @@ export function LoginPage() {
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [userIdentifier, setUserIdentifier] = useState('')
+  const [pin, setPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
 
   useEffect(() => {
     if (user?.emailVerified) navigate('/app/dashboard', { replace: true })
@@ -46,16 +46,21 @@ export function LoginPage() {
         </span>
       }
     >
+      <div className="mb-6 flex items-center gap-3 text-brand-600 dark:text-brand-400">
+        <IconUsers className="h-5 w-5" />
+        <h2 className="text-lg font-semibold">Member Portal</h2>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <Input
-          label="Email address"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          icon={<IconMail className="h-4 w-4" />}
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          label="Username or Email"
+          name="userIdentifier"
+          type="text"
+          autoComplete="username"
+          placeholder="Enter your username or email"
+          icon={<IconUser className="h-4 w-4" />}
+          value={userIdentifier}
+          onChange={(event) => setUserIdentifier(event.target.value)}
           required
         />
 
@@ -71,14 +76,15 @@ export function LoginPage() {
           value={password}
           onChange={(event) => setPassword(event.target.value.replace(/\D/g, '').slice(0, 4))}
           required
+          maxLength={4}
           trailing={
             <button
               type="button"
-              onClick={() => setShowPassword((value) => !value)}
+              onClick={() => setShowPin((value) => !value)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
               aria-label={showPassword ? 'Hide PIN' : 'Show PIN'}
             >
-              {showPassword ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
+              {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
             </button>
           }
         />
@@ -95,7 +101,7 @@ export function LoginPage() {
             to="/forgot-password"
             className="text-[13px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
           >
-            Forgot password?
+            Forgot PIN?
           </Link>
         </div>
 

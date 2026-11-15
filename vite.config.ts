@@ -14,6 +14,13 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'https://queueni.onrender.com',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   preview: {
     port: 4173,

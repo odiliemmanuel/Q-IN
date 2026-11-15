@@ -7,149 +7,15 @@ import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueu
 
 const KEY = 'qin:data:v2'
 
-function minutesAgo(minutes: number): string {
-  return new Date(Date.now() - minutes * 60_000).toISOString()
-}
-
-function daysAgo(days: number): string {
-  return new Date(Date.now() - days * 86_400_000).toISOString()
-}
-
-function entry(name: string, minutes: number, status: QueueEntry['status'] = 'WAITING'): QueueEntry {
-  return { id: uid('ent'), name, joinedAt: minutesAgo(minutes), status }
-}
-
-const SEED_COHORTS: Cohort[] = [
-  {
-    id: 'cohort_frontend',
-    name: 'Frontend Engineering',
-    description: 'Cohort 12 · React, TypeScript and design systems',
-    memberCount: 128,
-    createdAt: daysAgo(120),
-  },
-  {
-    id: 'cohort_data',
-    name: 'Data Science',
-    description: 'Cohort 7 · Python, statistics and applied ML',
-    memberCount: 94,
-    createdAt: daysAgo(96),
-  },
-  {
-    id: 'cohort_design',
-    name: 'Product Design',
-    description: 'Cohort 4 · Research, prototyping and critique',
-    memberCount: 61,
-    createdAt: daysAgo(74),
-  },
-  {
-    id: 'cohort_backend',
-    name: 'Backend Engineering',
-    description: 'Cohort 9 · APIs, databases and distributed systems',
-    memberCount: 110,
-    createdAt: daysAgo(58),
-  },
-]
-
-const SEED_QUEUES: Queue[] = [
-  {
-    id: 'queue_lab',
-    name: 'Lab Equipment Checkout',
-    cohortId: 'cohort_frontend',
-    description: 'Collect laptops, adapters and testing devices for the week.',
-    capacity: 40,
-    isOpen: true,
-    avgServiceMinutes: 6,
-    joinCode: 'LAB-2048',
-    createdAt: daysAgo(40),
-    entries: [
-      entry('Chinedu Eze', 34),
-      entry('Amara Nwosu', 29),
-      entry('Adaeze Nwankwo', 24),
-      entry('Femi Adeyemi', 21),
-      entry('Grace Etim', 17),
-      entry('Ibrahim Sule', 12),
-      entry('Ngozi Obi', 9),
-      entry('Kelechi Umeh', 5),
-      entry('Sade Lawal', 2),
-    ],
-  },
-  {
-    id: 'queue_mentor',
-    name: 'Mentor Office Hours',
-    cohortId: 'cohort_frontend',
-    description: '15-minute 1:1 sessions with a senior engineer.',
-    capacity: 20,
-    isOpen: true,
-    avgServiceMinutes: 12,
-    joinCode: 'MENT-7734',
-    createdAt: daysAgo(38),
-    entries: [
-      entry('Tobi Alabi', 22),
-      entry('Halima Yusuf', 16),
-      entry('Emeka Duru', 11),
-      entry('Bisi Ogunleye', 6),
-      entry('Yusuf Bello', 2),
-    ],
-  },
-  {
-    id: 'queue_review',
-    name: 'Project Review',
-    cohortId: 'cohort_data',
-    description: 'Present your capstone and collect structured feedback.',
-    capacity: 15,
-    isOpen: false,
-    avgServiceMinutes: 15,
-    joinCode: 'REVW-5521',
-    createdAt: daysAgo(30),
-    entries: [],
-  },
-  {
-    id: 'queue_critique',
-    name: 'Design Critique',
-    cohortId: 'cohort_design',
-    description: 'Bring one flow and get critique from the design pod.',
-    capacity: 12,
-    isOpen: true,
-    avgServiceMinutes: 10,
-    joinCode: 'CRIT-9915',
-    createdAt: daysAgo(26),
-    entries: [
-      entry('Ifeoma Chukwu', 18),
-      entry('David Ojo', 14),
-      entry('Zara Ahmed', 9),
-      entry('Peter Okon', 4),
-    ],
-  },
-  {
-    id: 'queue_swap',
-    name: 'Code Review Swap',
-    cohortId: 'cohort_backend',
-    description: 'Pair up and review a pull request end to end.',
-    capacity: 25,
-    isOpen: true,
-    avgServiceMinutes: 8,
-    joinCode: 'SWAP-4432',
-    createdAt: daysAgo(20),
-    entries: [
-      entry('Musa Danjuma', 26),
-      entry('Chioma Ibe', 19),
-      entry('Segun Balogun', 13),
-      entry('Aisha Garba', 7),
-      entry('Uche Nnamdi', 3),
-      entry('Lara Adebayo', 1),
-    ],
-  },
-]
-
 interface PersistedData {
   cohorts: Cohort[]
   queues: Queue[]
   activeTicket: ActiveTicket | null
 }
 
-const seed: PersistedData = {
-  cohorts: SEED_COHORTS,
-  queues: SEED_QUEUES,
+const emptySeed: PersistedData = {
+  cohorts: [],
+  queues: [],
   activeTicket: null,
 }
 
@@ -240,7 +106,7 @@ function persist(state: PersistedData) {
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
-  ...loadJSON<PersistedData>(KEY, seed),
+  ...loadJSON<PersistedData>(KEY, emptySeed),
   lastJoinError: null,
 
   joinQueue: (queueId, name, avatar) => {
@@ -369,7 +235,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       }
     }
 
-    // Demo mode: local join codes.
+    // Local mode: local join codes.
     const { queues } = get()
     const queue = queues.find(
       (item) => item.joinCode.toUpperCase() === normalized || item.id === normalized.toLowerCase(),
@@ -545,8 +411,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   resetDemoData: () => {
-    persist(seed)
-    set({ ...seed })
+    persist(emptySeed)
+    set({ ...emptySeed })
   },
 }))
 

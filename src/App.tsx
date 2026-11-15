@@ -5,6 +5,7 @@ import { AppShell } from './components/layout/AppShell'
 import { useAuthStore } from './stores/auth'
 import type { Role } from './lib/types'
 import { LoginPage } from './pages/auth/LoginPage'
+import { AdminLoginPage } from './pages/auth/AdminLoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
@@ -35,6 +36,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

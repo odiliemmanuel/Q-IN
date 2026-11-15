@@ -8,6 +8,8 @@ import { useUiStore } from '../../stores/ui'
 import { fetchCohorts, type BackendCohort, type Gender } from '../../lib/api'
 import { AuthLayout } from './AuthLayout'
 
+type RegisterStep = 'details' | 'photo' | 'complete'
+
 export function RegisterPage() {
   const navigate = useNavigate()
   const register = useAuthStore((state) => state.register)
@@ -30,6 +32,18 @@ export function RegisterPage() {
   const [agreed, setAgreed] = useState(true)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [cohorts, setCohorts] = useState<Array<{ id: string; name: string }>>([])
+  const [cohortsLoading, setCohortsLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    cohortsApi.getAllCohorts()
+      .then(data => {
+        setCohorts(data.filter(c => c.isActive))
+      })
+      .catch(() => {})
+      .finally(() => setCohortsLoading(false))
+  }, [])
 
   // Cohorts come from the backend (public endpoint) and are required to sign up.
   useEffect(() => {

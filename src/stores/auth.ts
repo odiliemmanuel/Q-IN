@@ -1,40 +1,19 @@
 import { create } from 'zustand'
 import type { Role, User } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
-import { uid } from '../lib/utils'
-import {
-  ApiError,
-  loadTokens,
-  loginUser,
-  registerUser,
-  resendVerification,
-  saveTokens,
-  uploadCaricature,
-  verifyEmailAndLogin,
-  logoutUser,
-  type Gender,
-  type RegisterPayload,
-} from '../lib/api'
+import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
-const PENDING_KEY = 'qin:pending-registration'
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-function roleForEmail(email: string): Role {
-  const value = email.toLowerCase()
-  if (value.startsWith('super')) return 'SUPER_ADMIN'
-  if (value.startsWith('admin')) return 'ADMIN'
-  return 'NATIVE'
-}
-
-function nameForEmail(email: string): string {
-  const handle = email.split('@')[0] ?? 'member'
-  return handle
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
+function mapLoginResponseToUser(response: LoginResponse): User {
+  return {
+    id: response.userId,
+    name: '',
+    email: '',
+    role: response.role as Role,
+    emailVerified: true,
+    createdAt: new Date().toISOString(),
+  }
 }
 
 /** Map a backend role string ("NATIVE", "ROLE_ADMIN", …) to the frontend Role. */
@@ -70,14 +49,29 @@ interface AuthState {
   user: User | null
   loading: boolean
   error: string | null
-  login: (email: string, pin: string) => Promise<void>
-  register: (payload: Omit<PendingRegistration, 'avatar'>, avatar: string | null) => Promise<void>
-  verifyEmail: (otp: string) => Promise<void>
-  resendVerification: () => Promise<void>
-  verifyEmailLocal: () => void
-  updateProfile: (patch: Partial<Pick<User, 'name' | 'avatar'>>) => void
+  login: (userIdentifier: string, pin: string, isAdmin?: boolean, isSuperAdmin?: boolean) => Promise<void>
+  register: (data: {
+    firstName: string
+    lastName: string
+    userName: string
+    pin: string
+    email: string
+    phoneNumber: string
+    whatsappNumber: string
+    gender: 'MALE' | 'FEMALE'
+    cohortId: string
+  }) => Promise<void>
+  verifyEmail: (email: string, otp: string) => Promise<void>
+  verifyEmailAndLogin: (email: string, otp: string) => Promise<void>
+  resendVerification: (email: string) => Promise<void>
+  forgotPassword: (email: string) => Promise<void>
+  resetPassword: (token: string, newPassword: string) => Promise<void>
+  refreshToken: () => Promise<void>
+  updatePassword: (oldPassword: string, newPassword: string) => Promise<void>
+  updateProfile: (patch: Partial<Pick<User, 'name'>>) => void
   logout: () => Promise<void>
   clearError: () => void
+  fetchUserProfile: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -85,179 +79,149 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
   error: null,
 
-  login: async (email, pin) => {
+  login: async (userIdentifier, pin, isAdmin = false, isSuperAdmin = false) => {
     set({ loading: true, error: null })
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.trim().length < 3) {
-      set({ loading: false, error: 'Enter a valid email or username.' })
-      return
-    }
-    if (pin.length !== 4) {
-      set({ loading: false, error: 'Your PIN is 4 digits.' })
-      return
-    }
-
     try {
-      const response = await loginUser(email.trim(), pin)
-      const tokens = {
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-        userId: response.userId,
+      let response: LoginResponse
+      if (isSuperAdmin) {
+        response = await authApi.superAdminLogin({ userIdentifier, pin })
+      } else if (isAdmin) {
+        response = await authApi.adminLogin({ userIdentifier, pin })
+      } else {
+        response = await authApi.login({ userIdentifier, pin })
       }
-      saveTokens(tokens)
 
-      const user: User = {
-        id: response.userId,
-        name: nameForEmail(email.includes('@') ? email : `${email}@queueni.app`),
-        email: email.includes('@') ? email.toLowerCase() : '',
-        role: roleFromBackend(response.role),
-        emailVerified: true,
-        createdAt: new Date().toISOString(),
-        avatar: loadJSON<User | null>(USER_KEY, null)?.avatar,
-      }
+      const user = mapLoginResponseToUser(response)
       saveJSON(USER_KEY, user)
       set({ user, loading: false, error: null })
+
+      await get().fetchUserProfile()
     } catch (error) {
-      if (error instanceof ApiError && error.status >= 400) {
-        set({ loading: false, error: error.message })
-        return
-      }
-      // Backend unreachable (Render cold start / offline): fall back to the
-      // local demo flow so the app stays usable.
-      await sleep(350)
-      const user: User = {
-        id: uid('usr'),
-        name: nameForEmail(email.includes('@') ? email : `${email}@queueni.app`),
-        email: email.includes('@') ? email.toLowerCase() : '',
-        role: roleForEmail(email),
-        emailVerified: true,
-        createdAt: new Date().toISOString(),
-      }
-      saveJSON(USER_KEY, user)
-      set({ user, loading: false, error: null })
+      const message = error instanceof Error ? error.message : 'Login failed. Please try again.'
+      set({ loading: false, error: message })
+      throw error
     }
   },
 
-  register: async (payload, avatar) => {
+  register: async (data) => {
     set({ loading: true, error: null })
 
-    const pending: PendingRegistration = { ...payload, avatar }
-    localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
-
     try {
-      const body: RegisterPayload = {
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        userName: payload.userName,
-        pin: payload.pin,
-        email: payload.email,
-        gender: payload.gender,
-        cohortId: payload.cohortId,
-      }
-      const response = await registerUser(body)
-      pending.avatar = avatar
-      localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
-
+      const response: RegisterResponse = await authApi.register(data)
       const user: User = {
         id: response.userId,
-        name: `${payload.firstName} ${payload.lastName}`.trim(),
-        email: payload.email.toLowerCase(),
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
         role: 'NATIVE',
         emailVerified: false,
         createdAt: new Date().toISOString(),
-        avatar: avatar ?? undefined,
       }
       saveJSON(USER_KEY, user)
       set({ user, loading: false, error: null })
     } catch (error) {
-      if (error instanceof ApiError && error.status >= 400) {
-        set({ loading: false, error: error.message })
-        return
-      }
-      // Offline fallback: create the local demo account.
-      const user: User = {
-        id: uid('usr'),
-        name: `${payload.firstName} ${payload.lastName}`.trim(),
-        email: payload.email.toLowerCase(),
-        role: 'NATIVE',
-        emailVerified: false,
-        createdAt: new Date().toISOString(),
-        avatar: avatar ?? undefined,
-      }
-      saveJSON(USER_KEY, user)
-      set({ user, loading: false, error: null })
+      const message = error instanceof Error ? error.message : 'Registration failed. Please try again.'
+      set({ loading: false, error: message })
+      throw error
     }
   },
 
-  verifyEmail: async (otp) => {
+  verifyEmail: async (email, otp) => {
     set({ loading: true, error: null })
-    const pending = loadPendingRegistration()
-    const user = get().user
-    const email = pending?.email ?? user?.email
-
-    if (!email) {
-      set({ loading: false, error: 'No pending registration found — sign up again.' })
-      return
-    }
-    if (!otp || otp.trim().length < 4) {
-      set({ loading: false, error: 'Enter the verification code from your inbox.' })
-      return
-    }
-
     try {
-      const response = await verifyEmailAndLogin(email, otp.trim())
-      saveTokens({
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-        userId: response.userId,
-      })
-
-      const verified: User = {
-        ...(user ?? {
-          id: response.userId,
-          name: pending ? `${pending.firstName} ${pending.lastName}`.trim() : nameForEmail(email),
-          email: email.toLowerCase(),
-          role: roleFromBackend(response.role),
-          createdAt: new Date().toISOString(),
-        }),
-        id: response.userId,
-        role: roleFromBackend(response.role),
-        emailVerified: true,
-      }
-      saveJSON(USER_KEY, verified)
-      localStorage.removeItem(PENDING_KEY)
-      set({ user: verified, loading: false, error: null })
-
-      // Push the caricature to the backend in the background (Cloudinary).
-      const avatar = pending?.avatar
-      if (avatar) {
-        void uploadCaricature(response.userId, avatar).catch(() => undefined)
+      await authApi.verifyEmail({ email, otp })
+      const user = get().user
+      if (user) {
+        const next = { ...user, emailVerified: true }
+        saveJSON(USER_KEY, next)
+        set({ user: next, loading: false, error: null })
+      } else {
+        set({ loading: false, error: null })
       }
     } catch (error) {
-      if (error instanceof ApiError && error.status >= 400) {
-        set({ loading: false, error: error.message })
-        return
-      }
-      // Offline fallback: verify locally.
-      get().verifyEmailLocal()
+      const message = error instanceof Error ? error.message : 'Email verification failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  verifyEmailAndLogin: async (email, otp) => {
+    set({ loading: true, error: null })
+    try {
+      const response = await authApi.verifyEmailAndLogin({ email, otp })
+      const user = mapLoginResponseToUser(response)
+      saveJSON(USER_KEY, user)
+      set({ user, loading: false, error: null })
+      await get().fetchUserProfile()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Email verification failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  resendVerification: async (email) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.resendVerification(email)
       set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to resend verification.'
+      set({ loading: false, error: message })
+      throw error
     }
   },
 
-  resendVerification: async () => {
-    const pending = loadPendingRegistration()
-    const email = pending?.email ?? get().user?.email
-    if (!email) throw new Error('No pending registration found.')
-    await resendVerification(email)
+  forgotPassword: async (email) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.forgotPassword(email)
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to send reset email.'
+      set({ loading: false, error: message })
+      throw error
+    }
   },
 
-  verifyEmailLocal: () => {
-    const user = get().user
-    if (!user) return
-    const next = { ...user, emailVerified: true }
-    saveJSON(USER_KEY, next)
-    localStorage.removeItem(PENDING_KEY)
-    set({ user: next })
+  resetPassword: async (token, newPassword) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.resetPassword(token, newPassword)
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Password reset failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  refreshToken: async () => {
+    try {
+      const refreshToken = localStorage.getItem('qin:refreshToken')
+      if (!refreshToken) throw new Error('No refresh token')
+      const response = await authApi.refreshToken(refreshToken)
+      localStorage.setItem('qin:accessToken', response.accessToken)
+      localStorage.setItem('qin:refreshToken', response.refreshToken)
+    } catch {
+      localStorage.removeItem('qin:accessToken')
+      localStorage.removeItem('qin:refreshToken')
+      localStorage.removeItem(USER_KEY)
+      set({ user: null, error: null })
+      throw new Error('Session expired')
+    }
+  },
+
+  updatePassword: async (oldPassword, newPassword) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.updatePassword({ oldPassword, newPassword })
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Password update failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
   },
 
   updateProfile: (patch) => {
@@ -269,13 +233,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    const hadTokens = Boolean(loadTokens())
-    await logoutUser()
+    try {
+      await authApi.logout()
+    } catch {
+      // Ignore logout errors
+    }
+    localStorage.removeItem('qin:accessToken')
+    localStorage.removeItem('qin:refreshToken')
     localStorage.removeItem(USER_KEY)
     localStorage.removeItem(PENDING_KEY)
     saveTokens(null)
     set({ user: null, error: null })
     void hadTokens
+  },
+
+  fetchUserProfile: async () => {
+    // This would fetch the full user profile from an API endpoint
+    // For now, we'll use the stored user data
+    // TODO: Implement actual profile fetch when API endpoint is available
   },
 
   clearError: () => set({ error: null }),

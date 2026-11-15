@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui'
-import { IconMail, IconShield } from '../../components/icons'
+import { IconMail } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { AuthLayout } from './AuthLayout'
