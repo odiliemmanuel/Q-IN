@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import {
@@ -33,6 +33,7 @@ import { cn, formatDate, timeAgo } from '../lib/utils'
 import { useAuthStore } from '../stores/auth'
 import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
+import { webhooksApi } from '../api'
 
 type TabId = 'queues' | 'admins' | 'webhooks'
 
@@ -40,47 +41,6 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'queues', label: 'Queues', icon: <IconQueue className="h-4 w-4" /> },
   { id: 'admins', label: 'Admins', icon: <IconShield className="h-4 w-4" /> },
   { id: 'webhooks', label: 'Webhooks', icon: <IconWebhook className="h-4 w-4" /> },
-]
-
-function minutesAgo(minutes: number) {
-  return new Date(Date.now() - minutes * 60_000).toISOString()
-}
-
-const SEED_ADMINS: AdminRecord[] = [
-  { id: 'adm_1', name: 'Tunde Bello', email: 'admin@qin.app', role: 'ADMIN', status: 'ACTIVE', lastActive: minutesAgo(4) },
-  { id: 'adm_2', name: 'Zainab Musa', email: 'super@qin.app', role: 'SUPER_ADMIN', status: 'ACTIVE', lastActive: minutesAgo(14) },
-  { id: 'adm_3', name: 'Chiamaka Obi', email: 'chiamaka@qin.app', role: 'ADMIN', status: 'SUSPENDED', lastActive: minutesAgo(60 * 26) },
-  { id: 'adm_4', name: 'Ibrahim Sule', email: 'ibrahim@qin.app', role: 'ADMIN', status: 'ACTIVE', lastActive: minutesAgo(58) },
-]
-
-const SEED_WEBHOOKS: WebhookRecord[] = [
-  {
-    id: 'wh_1',
-    endpoint: 'https://hooks.qin.app/queue-events',
-    events: ['queue.opened', 'queue.closed', 'entry.called'],
-    active: true,
-    deliveries: 1284,
-    failures: 3,
-    createdAt: minutesAgo(60 * 24 * 40),
-  },
-  {
-    id: 'wh_2',
-    endpoint: 'https://api.school.edu/qin/sync',
-    events: ['cohort.created', 'entry.joined'],
-    active: true,
-    deliveries: 642,
-    failures: 0,
-    createdAt: minutesAgo(60 * 24 * 21),
-  },
-  {
-    id: 'wh_3',
-    endpoint: 'https://analytics.qin.app/ingest',
-    events: ['entry.served', 'entry.skipped'],
-    active: false,
-    deliveries: 318,
-    failures: 12,
-    createdAt: minutesAgo(60 * 24 * 9),
-  },
 ]
 
 export function AdminPage() {
@@ -92,13 +52,31 @@ export function AdminPage() {
   const currentUser = useAuthStore((state) => state.user)
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN'
 
-  const [admins, setAdmins] = useState<AdminRecord[]>(SEED_ADMINS)
-  const [webhooks, setWebhooks] = useState<WebhookRecord[]>(SEED_WEBHOOKS)
+  const [admins, setAdmins] = useState<AdminRecord[]>([])
+  const [webhooks, setWebhooks] = useState<WebhookRecord[]>([])
+  const [webhooksLoading, setWebhooksLoading] = useState(true)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invite, setInvite] = useState<{ email: string; role: Role }>({ email: '', role: 'ADMIN' })
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [webhookOpen, setWebhookOpen] = useState(false)
   const [webhookForm, setWebhookForm] = useState({ endpoint: '', events: ['queue.opened'] })
+
+  useEffect(() => {
+    webhooksApi.getAll()
+      .then(data => {
+        setWebhooks(data.map(w => ({
+          id: w.id,
+          endpoint: w.url,
+          events: w.events,
+          active: w.active,
+          deliveries: 0,
+          failures: 0,
+          createdAt: w.createdAt,
+        })))
+      })
+      .catch(() => {})
+      .finally(() => setWebhooksLoading(false))
+  }, [])
 
   const waiting = queues.reduce(
     (sum, queue) => sum + queue.entries.filter((entry) => entry.status === 'WAITING').length,
@@ -303,71 +281,79 @@ export function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {admins.map((admin) => (
-                  <tr key={admin.id} className="text-[13px] hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={admin.name} size="sm" />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-900 dark:text-white">{admin.name}</p>
-                          <p className="truncate text-[11.5px] text-slate-500 dark:text-slate-400">{admin.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <Badge tone={admin.role === 'SUPER_ADMIN' ? 'violet' : 'brand'}>
-                        {admin.role === 'SUPER_ADMIN' ? 'Super admin' : 'Admin'}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-3">
-                      <Badge tone={admin.status === 'ACTIVE' ? 'success' : 'warning'} dot>
-                        {admin.status === 'ACTIVE' ? 'Active' : 'Suspended'}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{timeAgo(admin.lastActive)}</td>
-                    <td className="px-5 py-3">
-                      {isSuperAdmin ? (
-                        <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setAdmins((current) =>
-                              current.map((item) =>
-                                item.id === admin.id
-                                  ? { ...item, status: item.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' }
-                                  : item,
-                              ),
-                            )
-                            notify(
-                              admin.status === 'ACTIVE' ? `${admin.name} suspended` : `${admin.name} reactivated`,
-                              'info',
-                            )
-                          }}
-                        >
-                          {admin.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10"
-                          aria-label={`Remove ${admin.name}`}
-                          onClick={() => {
-                            setAdmins((current) => current.filter((item) => item.id !== admin.id))
-                            notify(`${admin.name} removed`, 'info')
-                          }}
-                        >
-                          <IconTrash className="h-4 w-4" />
-                        </Button>
-                        </div>
-                      ) : (
-                        <span className="text-[11.5px] text-slate-400 dark:text-slate-500">—</span>
-                      )}
+                {admins.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-12 text-center text-slate-500 dark:text-slate-400">
+                      No admins found. Invite an admin to get started.
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                ) : (
+                  admins.map((admin) => (
+                      <tr key={admin.id} className="text-[13px] hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={admin.name} size="sm" />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-slate-900 dark:text-white">{admin.name}</p>
+                              <p className="truncate text-[11.5px] text-slate-500 dark:text-slate-400">{admin.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Badge tone={admin.role === 'SUPER_ADMIN' ? 'violet' : 'brand'}>
+                            {admin.role === 'SUPER_ADMIN' ? 'Super admin' : 'Admin'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Badge tone={admin.status === 'ACTIVE' ? 'success' : 'warning'} dot>
+                            {admin.status === 'ACTIVE' ? 'Active' : 'Suspended'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{timeAgo(admin.lastActive)}</td>
+                        <td className="px-5 py-3">
+                          {isSuperAdmin ? (
+                            <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setAdmins((current) =>
+                                  current.map((item) =>
+                                    item.id === admin.id
+                                      ? { ...item, status: item.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' }
+                                      : item,
+                                  ),
+                                )
+                                notify(
+                                  admin.status === 'ACTIVE' ? `${admin.name} suspended` : `${admin.name} reactivated`,
+                                  'info',
+                                )
+                              }}
+                            >
+                              {admin.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10"
+                              aria-label={`Remove ${admin.name}`}
+                              onClick={() => {
+                                setAdmins((current) => current.filter((item) => item.id !== admin.id))
+                                notify(`${admin.name} removed`, 'info')
+                              }}
+                            >
+                              <IconTrash className="h-4 w-4" />
+                            </Button>
+                            </div>
+                          ) : (
+                            <span className="text-[11.5px] text-slate-400 dark:text-slate-500">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+</tbody>
+              </table>
           </div>
         </Card>
       ) : null}
@@ -386,7 +372,14 @@ export function AdminPage() {
             />
           </Card>
 
-          {webhooks.length === 0 ? (
+          {webhooksLoading ? (
+            <Card>
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                <span className="ml-3 text-slate-500 dark:text-slate-400">Loading webhooks...</span>
+              </div>
+            </Card>
+          ) : webhooks.length === 0 ? (
             <Card>
               <EmptyState
                 icon={<IconWebhook className="h-5 w-5" />}

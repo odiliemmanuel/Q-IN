@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import {
-  Avatar,
   Badge,
   Button,
   Card,
@@ -24,20 +23,6 @@ import {
 import { cn, formatDate, timeAgo } from '../lib/utils'
 import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
-
-const ADMINS = [
-  { name: 'Zainab Musa', email: 'super@qin.app', role: 'Super admin', active: '14m ago' },
-  { name: 'Tunde Bello', email: 'admin@qin.app', role: 'Admin', active: '4m ago' },
-  { name: 'Ibrahim Sule', email: 'ibrahim@qin.app', role: 'Admin', active: '58m ago' },
-  { name: 'Chiamaka Obi', email: 'chiamaka@qin.app', role: 'Admin', active: '1d ago' },
-]
-
-const HEALTH = [
-  { label: 'API', value: '42 ms', status: 'healthy' as const },
-  { label: 'Realtime (WS)', value: '318 sockets', status: 'healthy' as const },
-  { label: 'Webhook delivery', value: '99.6%', status: 'healthy' as const },
-  { label: 'Background jobs', value: '2 retrying', status: 'warning' as const },
-]
 
 export function SuperAdminPage() {
   const cohorts = useQueueStore((state) => state.cohorts)
@@ -116,29 +101,34 @@ export function SuperAdminPage() {
         <Card>
           <CardHeader title="System health" description="Last 24 hours." />
           <CardBody className="space-y-3 pt-4">
-            {HEALTH.map((item) => (
-              <div key={item.label} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      'h-2 w-2 rounded-full',
-                      item.status === 'healthy' ? 'bg-emerald-500' : 'bg-amber-500',
-                    )}
-                  />
-                  <span className="text-[12.5px] text-slate-600 dark:text-slate-300">{item.label}</span>
-                </div>
-                <span
-                  className={cn(
-                    'text-[12px] font-semibold',
-                    item.status === 'healthy'
-                      ? 'text-slate-800 dark:text-slate-200'
-                      : 'text-amber-600 dark:text-amber-400',
-                  )}
-                >
-                  {item.value}
-                </span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-[12.5px] text-slate-600 dark:text-slate-300">API</span>
               </div>
-            ))}
+              <span className="text-[12px] font-semibold text-slate-800 dark:text-slate-200">Healthy</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-[12.5px] text-slate-600 dark:text-slate-300">Realtime (WS)</span>
+              </div>
+              <span className="text-[12px] font-semibold text-slate-800 dark:text-slate-200">Connected</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-[12.5px] text-slate-600 dark:text-slate-300">Webhook delivery</span>
+              </div>
+              <span className="text-[12px] font-semibold text-slate-800 dark:text-slate-200">Operational</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                <span className="text-[12.5px] text-slate-600 dark:text-slate-300">Background jobs</span>
+              </div>
+              <span className="text-[12px] font-semibold text-amber-600 dark:text-amber-400">Monitoring</span>
+            </div>
           </CardBody>
         </Card>
       </div>
@@ -156,21 +146,10 @@ export function SuperAdminPage() {
               </Link>
             }
           />
-          <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
-            {ADMINS.map((admin) => (
-              <li key={admin.email} className="flex items-center gap-3 px-5 py-3">
-                <Avatar name={admin.name} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-slate-900 dark:text-white">{admin.name}</p>
-                  <p className="truncate text-[11.5px] text-slate-500 dark:text-slate-400">{admin.email}</p>
-                </div>
-                <Badge tone={admin.role === 'Super admin' ? 'violet' : 'brand'}>{admin.role}</Badge>
-                <span className="hidden w-16 text-right text-[11.5px] text-slate-400 sm:block dark:text-slate-500">
-                  {admin.active}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 text-center text-slate-500 dark:text-slate-400 py-8">
+            <p className="text-[13px]">Admin activity data loads from the admin management page.</p>
+            <p className="text-[12px] mt-1">Visit the Admin console to view and manage admins.</p>
+          </div>
         </Card>
 
         <div className="space-y-6">
@@ -178,13 +157,12 @@ export function SuperAdminPage() {
             <CardHeader title="Role distribution" />
             <CardBody className="pt-4">
               <div className="flex h-2.5 overflow-hidden rounded-full">
-                <div className="bg-brand-500" style={{ width: '88%' }} />
-                <div className="bg-violet-500" style={{ width: '9%' }} />
-                <div className="bg-amber-500" style={{ width: '3%' }} />
+                <div className="bg-brand-500" style={{ width: `${Math.min(95, (members / Math.max(1, members + 10)) * 100)}%` }} />
+                <div className="bg-violet-500" style={{ width: `${Math.min(5, 100 - (members / Math.max(1, members + 10)) * 100)}%` }} />
               </div>
               <div className="mt-4 space-y-2.5">
                 <RoleRow color="bg-brand-500" label="Members" value={members} />
-                <RoleRow color="bg-violet-500" label="Admins" value={ADMINS.length - 1} />
+                <RoleRow color="bg-violet-500" label="Admins" value={0} />
                 <RoleRow color="bg-amber-500" label="Super admins" value={1} />
               </div>
             </CardBody>
