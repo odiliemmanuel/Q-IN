@@ -11,13 +11,14 @@ const CODE_LENGTH = 6
 export function VerifyEmailPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const verifyEmailAndLogin = useAuthStore((state) => state.verifyEmailAndLogin)
+  const verifyEmail = useAuthStore((state) => state.verifyEmail)
   const resendVerification = useAuthStore((state) => state.resendVerification)
+  const loading = useAuthStore((state) => state.loading)
+  const error = useAuthStore((state) => state.error)
   const notify = useUiStore((state) => state.notify)
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''))
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
   const refs = useRef<Array<HTMLInputElement | null>>([])
 
@@ -28,7 +29,7 @@ export function VerifyEmailPage() {
 
   const setDigit = (index: number, raw: string) => {
     const char = raw.replace(/\D/g, '').slice(-1)
-    setError(null)
+    setLocalError(null)
     setDigits((current) => {
       const next = [...current]
       next[index] = char
@@ -62,30 +63,31 @@ export function VerifyEmailPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (code.length < CODE_LENGTH) {
-      setError('Enter the full 6-digit code.')
+      setLocalError('Enter the full 6-digit code.')
       return
     }
-    setError(null)
-    setLoading(true)
+    setLocalError(null)
     try {
-      await verifyEmailAndLogin(user.email, code)
+      await verifyEmail(code)
+      const state = useAuthStore.getState()
+      if (state.error) {
+        setLocalError(state.error)
+        return
+      }
       notify('Email verified — welcome to Q-In')
       navigate('/app/dashboard')
-    } catch {
-      setError('Invalid or expired code. Please try again.')
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Verification failed. Try again.')
     }
   }
 
   const handleResend = async () => {
-    if (!user.email) return
     setResending(true)
     try {
-      await resendVerification(user.email)
-      notify('A new code has been sent to your email', 'info')
-    } catch {
-      notify('Failed to resend code', 'error')
+      await resendVerification()
+      notify('A new code is on its way', 'info')
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Could not resend the code', 'error')
     } finally {
       setResending(false)
     }
@@ -108,6 +110,14 @@ export function VerifyEmailPage() {
         </span>
       }
     >
+      <div className="mb-5 flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-3 dark:border-brand-500/25 dark:bg-brand-500/10">
+        <IconShield className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" />
+        <p className="text-[12.5px] leading-relaxed text-brand-900 dark:text-brand-200">
+          <span className="font-semibold">Check your inbox:</span> enter the 6-digit code we emailed
+          to {user?.email}. Didn&apos;t arrive? Use <span className="font-semibold">Resend code</span> below.
+        </p>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex justify-between gap-2" onPaste={handlePaste}>
           {digits.map((digit, index) => (
@@ -129,8 +139,8 @@ export function VerifyEmailPage() {
           ))}
         </div>
 
-        {error ? (
-          <p className="text-[13px] font-medium text-rose-600 dark:text-rose-400">{error}</p>
+        {localError || error ? (
+          <p className="text-[13px] font-medium text-rose-600 dark:text-rose-400">{localError ?? error}</p>
         ) : null}
 
         <Button type="submit" size="lg" className="w-full" loading={loading} disabled={code.length < CODE_LENGTH}>
@@ -143,9 +153,9 @@ export function VerifyEmailPage() {
         Didn&apos;t get it?
         <button
           type="button"
-          onClick={handleResend}
+          onClick={() => void handleResend()}
           disabled={resending}
-          className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 disabled:opacity-50"
+          className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 disabled:opacity-60"
         >
           {resending ? 'Sending…' : 'Resend code'}
         </button>

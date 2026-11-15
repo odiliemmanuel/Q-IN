@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Input, Select } from '../../components/ui'
-import { IconEye, IconEyeOff, IconLock, IconMail, IconUser, IconPhone, IconMessageCircle, IconSparkles } from '../../components/icons'
+import { FaceCapture } from '../../components/FaceCapture'
+import { IconArrowLeft, IconArrowRight, IconEye, IconEyeOff, IconLock, IconMail, IconSparkles, IconUser } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
-import { cohortsApi } from '../../api'
-import { uploadCaricature } from '../../lib/api'
-import { FaceCapture } from '../../components/FaceCapture'
+import { fetchCohorts, type BackendCohort, type Gender } from '../../lib/api'
 import { AuthLayout } from './AuthLayout'
 
 type RegisterStep = 'details' | 'photo' | 'complete'
@@ -19,19 +18,19 @@ export function RegisterPage() {
   const clearError = useAuthStore((state) => state.clearError)
   const notify = useUiStore((state) => state.notify)
 
-  const [step, setStep] = useState<RegisterStep>('details')
+  const [step, setStep] = useState<1 | 2>(1)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [userName, setUserName] = useState('')
+  const [email, setEmail] = useState('')
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
-  const [email, setEmail] = useState('')
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [whatsappNumber, setWhatsappNumber] = useState('')
-  const [gender, setGender] = useState<'MALE' | 'FEMALE'>('MALE')
-  const [cohortId, setCohortId] = useState('')
   const [showPin, setShowPin] = useState(false)
-  const [agreed, setAgreed] = useState(false)
+  const [gender, setGender] = useState<Gender | ''>('')
+  const [cohortId, setCohortId] = useState('')
+  const [cohorts, setCohorts] = useState<BackendCohort[]>([])
+  const [cohortsError, setCohortsError] = useState<string | null>(null)
+  const [agreed, setAgreed] = useState(true)
+  const [avatar, setAvatar] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [cohorts, setCohorts] = useState<Array<{ id: string; name: string }>>([])
   const [cohortsLoading, setCohortsLoading] = useState(true)
@@ -46,21 +45,61 @@ export function RegisterPage() {
       .finally(() => setCohortsLoading(false))
   }, [])
 
-  const handleDetailsSubmit = async (event: React.FormEvent) => {
+  // Cohorts come from the backend (public endpoint) and are required to sign up.
+  useEffect(() => {
+    let cancelled = false
+    fetchCohorts()
+      .then((list) => {
+        if (cancelled) return
+        setCohorts(list)
+        setCohortsError(null)
+        if (list.length && !cohortId) setCohortId(list[0].id)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setCohortsError(
+          err instanceof Error && err.message
+            ? `Could not load cohorts: ${err.message}`
+            : 'Could not load cohorts right now — the backend may be waking up. Retrying…',
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const goStep2 = (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
     setLocalError(null)
 
+    if (firstName.trim().length < 2) {
+      setLocalError('Please enter your first name.')
+      return
+    }
+    if (lastName.trim().length < 2) {
+      setLocalError('Please enter your last name.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLocalError('Enter a valid email address.')
+      return
+    }
+    if (!/^\d{4}$/.test(pin)) {
+      setLocalError('Your PIN must be exactly 4 digits.')
+      return
+    }
     if (pin !== confirmPin) {
       setLocalError('PINs do not match.')
       return
     }
-    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      setLocalError('PIN must be exactly 4 digits.')
+    if (gender !== 'MALE' && gender !== 'FEMALE') {
+      setLocalError('Select your gender.')
       return
     }
     if (!cohortId) {
-      setLocalError('Please select a cohort.')
+      setLocalError('Choose your cohort to continue.')
       return
     }
     if (!agreed) {
@@ -68,263 +107,222 @@ export function RegisterPage() {
       return
     }
 
-    await register({
-      firstName,
-      lastName,
-      userName,
-      pin,
-      email,
-      phoneNumber,
-      whatsappNumber,
-      gender,
-      cohortId,
-    })
-    const user = useAuthStore.getState().user
-    if (!user) return
-    setUserId(user.id)
-    setStep('photo')
+    setLocalError(null)
+    setStep(2)
   }
 
-  const handlePhotoConfirm = async (avatarDataUrl: string) => {
-    setStep('complete')
-    if (userId) {
-      try {
-        await uploadCaricature(userId, avatarDataUrl)
-      } catch {
-        // Caricature upload failed but registration succeeded
-        notify('Account created — caricature upload failed, you can add it later')
-      }
-    }
-    notify('Account created — verify your email to continue')
+  const handleSubmit = async (confirmedAvatar?: string) => {
+    const useAvatar = confirmedAvatar ?? avatar
+    clearError()
+    setLocalError(null)
+    await register(
+      {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, ''),
+        pin,
+        email: email.trim().toLowerCase(),
+        gender: (gender || 'MALE') as Gender,
+        cohortId,
+      },
+      useAvatar,
+    )
+    if (!useAuthStore.getState().user) return
+    notify('Account created — check your inbox for the verification code')
     navigate('/verify-email')
   }
-
-  const handlePhotoSkip = async () => {
-    setStep('complete')
-    notify('Account created — verify your email to continue')
-    navigate('/verify-email')
-  }
-
-  const renderDetailsStep = () => (
-    <form onSubmit={handleDetailsSubmit} className="space-y-4" noValidate>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Input
-          label="First name"
-          name="firstName"
-          autoComplete="given-name"
-          placeholder="Ada"
-          icon={<IconUser className="h-4 w-4" />}
-          value={firstName}
-          onChange={(event) => setFirstName(event.target.value)}
-          required
-        />
-        <Input
-          label="Last name"
-          name="lastName"
-          autoComplete="family-name"
-          placeholder="Okafor"
-          icon={<IconUser className="h-4 w-4" />}
-          value={lastName}
-          onChange={(event) => setLastName(event.target.value)}
-          required
-        />
-      </div>
-
-      <Input
-        label="Username"
-        name="userName"
-        autoComplete="username"
-        placeholder="adaokafor"
-        icon={<IconUser className="h-4 w-4" />}
-        value={userName}
-        onChange={(event) => setUserName(event.target.value)}
-        required
-      />
-
-      <Input
-        label="Email address"
-        name="email"
-        type="email"
-        autoComplete="email"
-        placeholder="you@example.com"
-        icon={<IconMail className="h-4 w-4" />}
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        required
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Input
-          label="Phone number"
-          name="phoneNumber"
-          type="tel"
-          autoComplete="tel"
-          placeholder="+234 800 000 0000"
-          icon={<IconPhone className="h-4 w-4" />}
-          value={phoneNumber}
-          onChange={(event) => setPhoneNumber(event.target.value)}
-          required
-        />
-        <Input
-          label="WhatsApp number"
-          name="whatsappNumber"
-          type="tel"
-          autoComplete="tel"
-          placeholder="+234 800 000 0000"
-          icon={<IconMessageCircle className="h-4 w-4" />}
-          value={whatsappNumber}
-          onChange={(event) => setWhatsappNumber(event.target.value)}
-        />
-      </div>
-
-      <Select
-        label="Gender"
-        name="gender"
-        value={gender}
-        onChange={(event) => setGender(event.target.value as 'MALE' | 'FEMALE')}
-        required
-      >
-        <option value="MALE">Male</option>
-        <option value="FEMALE">Female</option>
-      </Select>
-
-      <Select
-        label="Cohort"
-        name="cohortId"
-        value={cohortId}
-        onChange={(event) => setCohortId(event.target.value)}
-        required
-        disabled={cohortsLoading}
-      >
-        {cohortsLoading ? (
-          <option value="" disabled>Loading cohorts...</option>
-        ) : (
-          <>
-            <option value="" disabled>Select your cohort</option>
-            {cohorts.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </>
-        )}
-      </Select>
-
-      <Input
-        label="PIN (4 digits)"
-        name="pin"
-        type={showPin ? 'text' : 'password'}
-        autoComplete="new-password"
-        placeholder="1234"
-        icon={<IconLock className="h-4 w-4" />}
-        value={pin}
-        onChange={(event) => setPin(event.target.value)}
-        required
-        maxLength={4}
-        hint="Use exactly 4 digits."
-        trailing={
-          <button
-            type="button"
-            onClick={() => setShowPin((value) => !value)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-            aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
-          >
-            {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
-          </button>
-        }
-      />
-
-      <Input
-        label="Confirm PIN"
-        name="confirmPin"
-        type={showPin ? 'text' : 'password'}
-        autoComplete="new-password"
-        placeholder="1234"
-        icon={<IconLock className="h-4 w-4" />}
-        value={confirmPin}
-        onChange={(event) => setConfirmPin(event.target.value)}
-        required
-        maxLength={4}
-      />
-
-      <label className="flex items-start gap-2.5 text-[13px] text-slate-600 dark:text-slate-400">
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={(event) => setAgreed(event.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800"
-        />
-        <span>
-          I agree to the <span className="font-medium text-slate-800 dark:text-slate-200">Terms</span> and{' '}
-          <span className="font-medium text-slate-800 dark:text-slate-200">Privacy Policy</span>.
-        </span>
-      </label>
-
-      {localError || error ? (
-        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
-          {localError ?? error}
-        </p>
-      ) : null}
-
-      <Button type="submit" size="lg" className="w-full" loading={loading}>
-        {loading ? 'Creating account…' : 'Continue to photo'}
-      </Button>
-    </form>
-  )
-
-  const renderPhotoStep = () => (
-    <div className="space-y-4">
-      <div className="text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/30">
-          <IconSparkles className="h-6 w-6 text-brand-600 dark:text-brand-400" />
-        </div>
-        <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Add your caricature</h3>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Take a photo or upload one — we'll turn it into a fun caricature for the queue.
-        </p>
-      </div>
-      <FaceCapture
-        onConfirm={handlePhotoConfirm}
-        busy={loading}
-      />
-      <div className="flex items-center justify-center gap-2">
-        <Button variant="ghost" onClick={handlePhotoSkip} disabled={loading}>
-          Skip for now
-        </Button>
-      </div>
-    </div>
-  )
 
   return (
     <AuthLayout
-      title={step === 'details' ? 'Create your account' : step === 'photo' ? 'Add your caricature' : 'All set!'}
+      title={step === 1 ? 'Create your account' : 'Add your face'}
       subtitle={
-        step === 'details'
+        step === 1
           ? 'Join your cohort and stop guessing when your turn is.'
-          : step === 'photo'
-          ? 'Your caricature helps others recognise you on the queue.'
-          : 'Account created — check your email to verify.'
+          : 'We turn your photo into a caricature so others can spot you on the queue.'
       }
       footer={
-        step === 'details' ? (
-          <span className="text-slate-500 dark:text-slate-400">
-            Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400">
-              Sign in
-            </Link>
-          </span>
-        ) : null
+        <span className="text-slate-500 dark:text-slate-400">
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400">
+            Sign in
+          </Link>
+        </span>
       }
     >
-      {step === 'details' && renderDetailsStep()}
-      {step === 'photo' && renderPhotoStep()}
-      {step === 'complete' && (
-        <div className="text-center py-8">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <IconSparkles className="h-8 w-8 text-green-600 dark:text-green-400" />
+      {step === 1 ? (
+        <form onSubmit={goStep2} className="space-y-4" noValidate>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="First name"
+              name="firstName"
+              autoComplete="given-name"
+              placeholder="Ada"
+              icon={<IconUser className="h-4 w-4" />}
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              required
+            />
+            <Input
+              label="Last name"
+              name="lastName"
+              autoComplete="family-name"
+              placeholder="Okafor"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              required
+            />
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">You're all set!</h3>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Check your email to verify your account and start using Queueni.
-          </p>
+
+          <Input
+            label="Email address"
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            icon={<IconMail className="h-4 w-4" />}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="PIN"
+              name="pin"
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              autoComplete="new-password"
+              placeholder="••••"
+              maxLength={4}
+              icon={<IconLock className="h-4 w-4" />}
+              value={pin}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+              hint="4 digits."
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPin((value) => !value)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+                >
+                  {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
+                </button>
+              }
+            />
+            <Input
+              label="Confirm PIN"
+              name="confirmPin"
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              autoComplete="new-password"
+              placeholder="Repeat PIN"
+              maxLength={4}
+              icon={<IconLock className="h-4 w-4" />}
+              value={confirmPin}
+              onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Gender"
+              name="gender"
+              value={gender}
+              onChange={(event) => setGender(event.target.value as Gender | '')}
+              required
+            >
+              <option value="">Select…</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+            </Select>
+            <Select
+              label="Cohort"
+              name="cohort"
+              value={cohortId}
+              onChange={(event) => setCohortId(event.target.value)}
+              required
+            >
+              {cohorts.length ? (
+                cohorts.map((cohort) => (
+                  <option key={cohort.id} value={cohort.id}>
+                    {cohort.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">{cohortsError ? 'Loading…' : 'No cohorts yet'}</option>
+              )}
+            </Select>
+          </div>
+
+          {cohortsError ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-medium text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              {cohortsError}
+            </p>
+          ) : null}
+
+          <label className="flex items-start gap-2.5 text-[13px] text-slate-600 dark:text-slate-400">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800"
+            />
+            <span>
+              I agree to the <span className="font-medium text-slate-800 dark:text-slate-200">Terms</span> and{' '}
+              <span className="font-medium text-slate-800 dark:text-slate-200">Privacy Policy</span>.
+            </span>
+          </label>
+
+          {localError || error ? (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+              {localError ?? error}
+            </p>
+          ) : null}
+
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full"
+            rightIcon={<IconArrowRight className="h-4 w-4" />}
+            disabled={Boolean(cohortsError) || cohorts.length === 0}
+          >
+            Next: add your photo
+          </Button>
+        </form>
+      ) : (
+        <div className="space-y-4">
+          <FaceCapture
+            busy={loading}
+            onConfirm={(dataUrl) => {
+              setAvatar(dataUrl)
+              void handleSubmit(dataUrl)
+            }}
+          />
+
+          {localError || error ? (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+              {localError ?? error}
+            </p>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLocalError(null)
+                setStep(1)
+              }}
+              leftIcon={<IconArrowLeft className="h-4 w-4" />}
+            >
+              Back
+            </Button>
+            <p className="flex flex-1 items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400">
+              <IconSparkles className="h-3.5 w-3.5 text-brand-600" />
+              Everything stays on your device — only the caricature is uploaded.
+            </p>
+          </div>
         </div>
       )}
     </AuthLayout>

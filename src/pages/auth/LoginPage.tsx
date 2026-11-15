@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
-import { IconEye, IconEyeOff, IconLock, IconUsers, IconUser } from '../../components/icons'
+import { IconEye, IconEyeOff, IconLock, IconMail } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { AuthLayout } from './AuthLayout'
@@ -26,11 +26,11 @@ export function LoginPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
-    await login(userIdentifier, pin)
-    const nextUser = useAuthStore.getState().user
-    if (!nextUser) return
-    notify(`Welcome back, ${nextUser.name.split(' ')[0]}`)
-    navigate(nextUser.emailVerified ? '/app/dashboard' : '/verify-email')
+    await login(email, password)
+    const state = useAuthStore.getState()
+    if (state.error || !state.user) return
+    notify(`Welcome back, ${state.user.name.split(' ')[0]}`)
+    navigate(state.user.emailVerified ? '/app/dashboard' : '/verify-email')
   }
 
   return (
@@ -67,12 +67,14 @@ export function LoginPage() {
         <Input
           label="PIN"
           name="pin"
-          type={showPin ? 'text' : 'password'}
+          type={showPassword ? 'text' : 'password'}
+          inputMode="numeric"
           autoComplete="current-password"
-          placeholder="Enter your 4-digit PIN"
+          placeholder="Your 4-digit PIN"
+          maxLength={4}
           icon={<IconLock className="h-4 w-4" />}
-          value={pin}
-          onChange={(event) => setPin(event.target.value)}
+          value={password}
+          onChange={(event) => setPassword(event.target.value.replace(/\D/g, '').slice(0, 4))}
           required
           maxLength={4}
           trailing={
@@ -80,7 +82,7 @@ export function LoginPage() {
               type="button"
               onClick={() => setShowPin((value) => !value)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+              aria-label={showPassword ? 'Hide PIN' : 'Show PIN'}
             >
               {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
             </button>
@@ -111,8 +113,7 @@ export function LoginPage() {
 
         <Button type="submit" size="lg" className="w-full" loading={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
-        </Button>
-      </form>
+        </Button>      </form>
     </AuthLayout>
   )
 }
