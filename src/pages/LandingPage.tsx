@@ -458,12 +458,15 @@ export function LandingPage() {
           <p className="text-[12px] text-slate-400 dark:text-slate-500">
             © {new Date().getFullYear()} Q-In · Queueni. All rights reserved.
           </p>
-          <div className="flex items-center gap-4 text-[12.5px] font-medium">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[12.5px] font-medium">
             <Link to="/login" className="text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
-              Sign in
+              Member sign in
             </Link>
             <Link to="/register" className="text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
               Create account
+            </Link>
+            <Link to="/admin/login" className="text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+              Admin sign in
             </Link>
           </div>
         </div>

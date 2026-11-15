@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Role, User } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
-import { uid } from '../lib/utils'
+import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
 
@@ -11,35 +11,44 @@ export const DEMO_ACCOUNTS: Array<{ role: Role; email: string; name: string; lab
   { role: 'SUPER_ADMIN', email: 'super@qin.app', name: 'Zainab Musa', label: 'Super admin' },
 ]
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-function roleForEmail(email: string): Role {
-  const value = email.toLowerCase()
-  if (value.startsWith('super')) return 'SUPER_ADMIN'
-  if (value.startsWith('admin')) return 'ADMIN'
-  return 'NATIVE'
-}
-
-function nameForEmail(email: string): string {
-  const handle = email.split('@')[0] ?? 'member'
-  return handle
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
+function mapLoginResponseToUser(response: LoginResponse): User {
+  return {
+    id: response.userId,
+    name: '',
+    email: '',
+    role: response.role as Role,
+    emailVerified: true,
+    createdAt: new Date().toISOString(),
+  }
 }
 
 interface AuthState {
   user: User | null
   loading: boolean
   error: string | null
-  login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<void>
+  login: (userIdentifier: string, pin: string, isAdmin?: boolean, isSuperAdmin?: boolean) => Promise<void>
+  register: (data: {
+    firstName: string
+    lastName: string
+    userName: string
+    pin: string
+    email: string
+    phoneNumber: string
+    whatsappNumber: string
+    gender: 'MALE' | 'FEMALE' | 'OTHER'
+    cohortId: string
+  }) => Promise<void>
   loginDemo: (role: Role) => void
-  verifyEmail: () => void
+  verifyEmail: (email: string, otp: string) => Promise<void>
+  verifyEmailAndLogin: (email: string, otp: string) => Promise<void>
+  resendVerification: (email: string) => Promise<void>
+  forgotPassword: (email: string) => Promise<void>
+  resetPassword: (token: string, newPassword: string) => Promise<void>
+  refreshToken: () => Promise<void>
   updateProfile: (patch: Partial<Pick<User, 'name'>>) => void
   logout: () => void
   clearError: () => void
+  fetchUserProfile: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -47,61 +56,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
   error: null,
 
-  login: async (email, password) => {
+  login: async (userIdentifier, pin, isAdmin = false, isSuperAdmin = false) => {
     set({ loading: true, error: null })
-    await sleep(550)
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      set({ loading: false, error: 'Enter a valid email address.' })
-      return
-    }
-    if (password.length < 6) {
-      set({ loading: false, error: 'Password must be at least 6 characters.' })
-      return
-    }
+    try {
+      let response: LoginResponse
+      if (isSuperAdmin) {
+        response = await authApi.superAdminLogin({ userIdentifier, pin })
+      } else if (isAdmin) {
+        response = await authApi.adminLogin({ userIdentifier, pin })
+      } else {
+        response = await authApi.login({ userIdentifier, pin })
+      }
 
-    const demo = DEMO_ACCOUNTS.find((account) => account.email === email.toLowerCase())
-    const user: User = {
-      id: demo ? `demo_${demo.role.toLowerCase()}` : uid('usr'),
-      name: demo?.name ?? nameForEmail(email),
-      email: email.toLowerCase(),
-      role: demo?.role ?? roleForEmail(email),
-      emailVerified: true,
-      createdAt: new Date().toISOString(),
-    }
+      const user = mapLoginResponseToUser(response)
+      saveJSON(USER_KEY, user)
+      set({ user, loading: false, error: null })
 
-    saveJSON(USER_KEY, user)
-    set({ user, loading: false, error: null })
+      await get().fetchUserProfile()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Login failed. Please try again.'
+      set({ loading: false, error: message })
+      throw error
+    }
   },
 
-  register: async (name, email, password) => {
+  register: async (data) => {
     set({ loading: true, error: null })
-    await sleep(650)
 
-    if (name.trim().length < 2) {
-      set({ loading: false, error: 'Please enter your full name.' })
-      return
+    try {
+      const response: RegisterResponse = await authApi.register(data)
+      const user: User = {
+        id: response.userId,
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        role: 'NATIVE',
+        emailVerified: false,
+        createdAt: new Date().toISOString(),
+      }
+      saveJSON(USER_KEY, user)
+      set({ user, loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Registration failed. Please try again.'
+      set({ loading: false, error: message })
+      throw error
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      set({ loading: false, error: 'Enter a valid email address.' })
-      return
-    }
-    if (password.length < 6) {
-      set({ loading: false, error: 'Password must be at least 6 characters.' })
-      return
-    }
-
-    const user: User = {
-      id: uid('usr'),
-      name: name.trim(),
-      email: email.toLowerCase(),
-      role: 'NATIVE',
-      emailVerified: false,
-      createdAt: new Date().toISOString(),
-    }
-
-    saveJSON(USER_KEY, user)
-    set({ user, loading: false, error: null })
   },
 
   loginDemo: (role) => {
@@ -118,12 +117,90 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, error: null })
   },
 
-  verifyEmail: () => {
-    const user = get().user
-    if (!user) return
-    const next = { ...user, emailVerified: true }
-    saveJSON(USER_KEY, next)
-    set({ user: next })
+  verifyEmail: async (email, otp) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.verifyEmail({ email, otp })
+      const user = get().user
+      if (user) {
+        const next = { ...user, emailVerified: true }
+        saveJSON(USER_KEY, next)
+        set({ user: next, loading: false, error: null })
+      } else {
+        set({ loading: false, error: null })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Email verification failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  verifyEmailAndLogin: async (email, otp) => {
+    set({ loading: true, error: null })
+    try {
+      const response = await authApi.verifyEmailAndLogin({ email, otp })
+      const user = mapLoginResponseToUser(response)
+      saveJSON(USER_KEY, user)
+      set({ user, loading: false, error: null })
+      await get().fetchUserProfile()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Email verification failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  resendVerification: async (email) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.resendVerification(email)
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to resend verification.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  forgotPassword: async (email) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.forgotPassword(email)
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to send reset email.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  resetPassword: async (token, newPassword) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.resetPassword(token, newPassword)
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Password reset failed.'
+      set({ loading: false, error: message })
+      throw error
+    }
+  },
+
+  refreshToken: async () => {
+    try {
+      const refreshToken = localStorage.getItem('qin:refreshToken')
+      if (!refreshToken) throw new Error('No refresh token')
+      const response = await authApi.refreshToken(refreshToken)
+      localStorage.setItem('qin:accessToken', response.accessToken)
+      localStorage.setItem('qin:refreshToken', response.refreshToken)
+    } catch {
+      localStorage.removeItem('qin:accessToken')
+      localStorage.removeItem('qin:refreshToken')
+      localStorage.removeItem(USER_KEY)
+      set({ user: null, error: null })
+      throw new Error('Session expired')
+    }
   },
 
   updateProfile: (patch) => {
@@ -134,9 +211,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: next })
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await authApi.logout()
+    } catch {
+      // Ignore logout errors
+    }
+    localStorage.removeItem('qin:accessToken')
+    localStorage.removeItem('qin:refreshToken')
     localStorage.removeItem(USER_KEY)
     set({ user: null, error: null })
+  },
+
+  fetchUserProfile: async () => {
+    // This would fetch the full user profile from an API endpoint
+    // For now, we'll use the stored user data
+    // TODO: Implement actual profile fetch when API endpoint is available
   },
 
   clearError: () => set({ error: null }),

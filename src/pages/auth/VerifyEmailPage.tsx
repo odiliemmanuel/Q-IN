@@ -11,12 +11,14 @@ const CODE_LENGTH = 6
 export function VerifyEmailPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const verifyEmail = useAuthStore((state) => state.verifyEmail)
+  const verifyEmailAndLogin = useAuthStore((state) => state.verifyEmailAndLogin)
+  const resendVerification = useAuthStore((state) => state.resendVerification)
   const notify = useUiStore((state) => state.notify)
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''))
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
   const refs = useRef<Array<HTMLInputElement | null>>([])
 
   if (!user) return <Navigate to="/login" replace />
@@ -57,19 +59,36 @@ export function VerifyEmailPage() {
     refs.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus()
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (code.length < CODE_LENGTH) {
       setError('Enter the full 6-digit code.')
       return
     }
+    setError(null)
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      verifyEmail()
+    try {
+      await verifyEmailAndLogin(user.email, code)
       notify('Email verified — welcome to Q-In')
       navigate('/app/dashboard')
-    }, 600)
+    } catch {
+      setError('Invalid or expired code. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!user.email) return
+    setResending(true)
+    try {
+      await resendVerification(user.email)
+      notify('A new code has been sent to your email', 'info')
+    } catch {
+      notify('Failed to resend code', 'error')
+    } finally {
+      setResending(false)
+    }
   }
 
   return (
@@ -132,10 +151,11 @@ export function VerifyEmailPage() {
         Didn&apos;t get it?
         <button
           type="button"
-          onClick={() => notify('A new code is on its way (demo)', 'info')}
-          className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+          onClick={handleResend}
+          disabled={resending}
+          className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 disabled:opacity-50"
         >
-          Resend code
+          {resending ? 'Sending…' : 'Resend code'}
         </button>
       </div>
     </AuthLayout>

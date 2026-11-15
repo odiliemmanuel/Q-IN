@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Button, Input } from '../../components/ui'
-import { IconEye, IconEyeOff, IconLock, IconMail, IconUser } from '../../components/icons'
+import { Button, Input, Select } from '../../components/ui'
+import { IconEye, IconEyeOff, IconLock, IconMail, IconUser, IconPhone, IconMessageCircle } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
+import { cohortsApi } from '../../api'
 import { AuthLayout } from './AuthLayout'
 
 export function RegisterPage() {
@@ -14,21 +15,46 @@ export function RegisterPage() {
   const clearError = useAuthStore((state) => state.clearError)
   const notify = useUiStore((state) => state.notify)
 
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [userName, setUserName] = useState('')
+  const [pin, setPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [agreed, setAgreed] = useState(true)
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE')
+  const [cohortId, setCohortId] = useState('')
+  const [showPin, setShowPin] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [cohorts, setCohorts] = useState<Array<{ id: string; name: string }>>([])
+  const [cohortsLoading, setCohortsLoading] = useState(true)
+
+  useEffect(() => {
+    cohortsApi.getAllCohorts()
+      .then(data => {
+        setCohorts(data.filter(c => c.isActive))
+      })
+      .catch(() => {})
+      .finally(() => setCohortsLoading(false))
+  }, [])
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
     setLocalError(null)
 
-    if (password !== confirm) {
-      setLocalError('Passwords do not match.')
+    if (pin !== confirmPin) {
+      setLocalError('PINs do not match.')
+      return
+    }
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      setLocalError('PIN must be exactly 4 digits.')
+      return
+    }
+    if (!cohortId) {
+      setLocalError('Please select a cohort.')
       return
     }
     if (!agreed) {
@@ -36,7 +62,17 @@ export function RegisterPage() {
       return
     }
 
-    await register(name, email, password)
+    await register({
+      firstName,
+      lastName,
+      userName,
+      pin,
+      email,
+      phoneNumber,
+      whatsappNumber,
+      gender,
+      cohortId,
+    })
     if (!useAuthStore.getState().user) return
     notify('Account created — verify your email to continue')
     navigate('/verify-email')
@@ -56,14 +92,37 @@ export function RegisterPage() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="First name"
+            name="firstName"
+            autoComplete="given-name"
+            placeholder="Ada"
+            icon={<IconUser className="h-4 w-4" />}
+            value={firstName}
+            onChange={(event) => setFirstName(event.target.value)}
+            required
+          />
+          <Input
+            label="Last name"
+            name="lastName"
+            autoComplete="family-name"
+            placeholder="Okafor"
+            icon={<IconUser className="h-4 w-4" />}
+            value={lastName}
+            onChange={(event) => setLastName(event.target.value)}
+            required
+          />
+        </div>
+
         <Input
-          label="Full name"
-          name="name"
-          autoComplete="name"
-          placeholder="Ada Okafor"
+          label="Username"
+          name="userName"
+          autoComplete="username"
+          placeholder="adaokafor"
           icon={<IconUser className="h-4 w-4" />}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
+          value={userName}
+          onChange={(event) => setUserName(event.target.value)}
           required
         />
 
@@ -79,39 +138,97 @@ export function RegisterPage() {
           required
         />
 
-        <Input
-          label="Password"
-          name="password"
-          type={showPassword ? 'text' : 'password'}
-          autoComplete="new-password"
-          placeholder="At least 6 characters"
-          icon={<IconLock className="h-4 w-4" />}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Phone number"
+            name="phoneNumber"
+            type="tel"
+            autoComplete="tel"
+            placeholder="+234 800 000 0000"
+            icon={<IconPhone className="h-4 w-4" />}
+            value={phoneNumber}
+            onChange={(event) => setPhoneNumber(event.target.value)}
+            required
+          />
+          <Input
+            label="WhatsApp number"
+            name="whatsappNumber"
+            type="tel"
+            autoComplete="tel"
+            placeholder="+234 800 000 0000"
+            icon={<IconMessageCircle className="h-4 w-4" />}
+            value={whatsappNumber}
+            onChange={(event) => setWhatsappNumber(event.target.value)}
+          />
+        </div>
+
+        <Select
+          label="Gender"
+          name="gender"
+          value={gender}
+          onChange={(event) => setGender(event.target.value as 'MALE' | 'FEMALE' | 'OTHER')}
           required
-          hint="Use 6 or more characters."
+        >
+          <option value="MALE">Male</option>
+          <option value="FEMALE">Female</option>
+          <option value="OTHER">Other</option>
+        </Select>
+
+        <Select
+          label="Cohort"
+          name="cohortId"
+          value={cohortId}
+          onChange={(event) => setCohortId(event.target.value)}
+          required
+          disabled={cohortsLoading}
+        >
+          {cohortsLoading ? (
+            <option value="" disabled>Loading cohorts...</option>
+          ) : (
+            <>
+              <option value="" disabled>Select your cohort</option>
+              {cohorts.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </>
+          )}
+        </Select>
+
+        <Input
+          label="PIN (4 digits)"
+          name="pin"
+          type={showPin ? 'text' : 'password'}
+          autoComplete="new-password"
+          placeholder="1234"
+          icon={<IconLock className="h-4 w-4" />}
+          value={pin}
+          onChange={(event) => setPin(event.target.value)}
+          required
+          maxLength={4}
+          hint="Use exactly 4 digits."
           trailing={
             <button
               type="button"
-              onClick={() => setShowPassword((value) => !value)}
+              onClick={() => setShowPin((value) => !value)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
             >
-              {showPassword ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
+              {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
             </button>
           }
         />
 
         <Input
-          label="Confirm password"
-          name="confirm"
-          type={showPassword ? 'text' : 'password'}
+          label="Confirm PIN"
+          name="confirmPin"
+          type={showPin ? 'text' : 'password'}
           autoComplete="new-password"
-          placeholder="Repeat your password"
+          placeholder="1234"
           icon={<IconLock className="h-4 w-4" />}
-          value={confirm}
-          onChange={(event) => setConfirm(event.target.value)}
+          value={confirmPin}
+          onChange={(event) => setConfirmPin(event.target.value)}
           required
+          maxLength={4}
         />
 
         <label className="flex items-start gap-2.5 text-[13px] text-slate-600 dark:text-slate-400">

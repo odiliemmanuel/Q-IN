@@ -2,17 +2,19 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
 import { IconArrowLeft, IconCheckCircle, IconMail } from '../../components/icons'
+import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { AuthLayout } from './AuthLayout'
 
 export function ForgotPasswordPage() {
+  const forgotPassword = useAuthStore((state) => state.forgotPassword)
   const notify = useUiStore((state) => state.notify)
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Enter a valid email address.')
@@ -20,20 +22,24 @@ export function ForgotPasswordPage() {
     }
     setError(null)
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
+    try {
+      await forgotPassword(email)
       setSent(true)
-      notify('Reset link sent (demo)', 'info')
-    }, 600)
+      notify('Reset code sent to your email', 'info')
+    } catch {
+      setError('Failed to send reset code. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <AuthLayout
-      title={sent ? 'Check your inbox' : 'Reset your password'}
+      title={sent ? 'Check your inbox' : 'Reset your PIN'}
       subtitle={
         sent
-          ? `If an account exists for ${email}, a reset link is on its way.`
-          : 'Enter your email and we will send you a secure reset link.'
+          ? `If an account exists for ${email}, a 4-digit reset code is on its way.`
+          : 'Enter your email and we will send you a 4-digit reset code.'
       }
       footer={
         <Link
@@ -51,10 +57,10 @@ export function ForgotPasswordPage() {
             <IconCheckCircle className="h-6 w-6" />
           </span>
           <p className="mt-3 text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-            Reset link sent
+            Reset code sent
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-emerald-800/80 dark:text-emerald-200/70">
-            The link expires in 30 minutes. Check your spam folder if you don&apos;t see it.
+            The code expires in 30 minutes. Check your spam folder if you don&apos;t see it.
           </p>
           <Button
             variant="outline"
@@ -86,7 +92,7 @@ export function ForgotPasswordPage() {
             required
           />
           <Button type="submit" size="lg" className="w-full" loading={loading}>
-            {loading ? 'Sending…' : 'Send reset link'}
+            {loading ? 'Sending…' : 'Send reset code'}
           </Button>
         </form>
       )}

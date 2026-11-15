@@ -1,0 +1,181 @@
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Button, Input } from '../../components/ui'
+import { IconEye, IconEyeOff, IconLock, IconShield, IconUserCog, IconUser } from '../../components/icons'
+import { DEMO_ACCOUNTS, useAuthStore } from '../../stores/auth'
+import { useUiStore } from '../../stores/ui'
+import { roleLabel } from '../../lib/utils'
+import { AuthLayout } from './AuthLayout'
+
+export function AdminLoginPage() {
+  const navigate = useNavigate()
+  const login = useAuthStore((state) => state.login)
+  const loginDemo = useAuthStore((state) => state.loginDemo)
+  const loading = useAuthStore((state) => state.loading)
+  const error = useAuthStore((state) => state.error)
+  const clearError = useAuthStore((state) => state.clearError)
+  const user = useAuthStore((state) => state.user)
+  const notify = useUiStore((state) => state.notify)
+
+  const [userIdentifier, setUserIdentifier] = useState('')
+  const [pin, setPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
+
+  useEffect(() => {
+    if (user?.emailVerified) {
+      if (user.role === 'SUPER_ADMIN') {
+        navigate('/app/super-admin', { replace: true })
+      } else {
+        navigate('/app/admin', { replace: true })
+      }
+    }
+  }, [user, navigate])
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    clearError()
+    const isSuperAdmin = userIdentifier.toLowerCase().startsWith('super')
+    const isAdmin = userIdentifier.toLowerCase().startsWith('admin') || isSuperAdmin
+    await login(userIdentifier, pin, isAdmin, isSuperAdmin)
+    const nextUser = useAuthStore.getState().user
+    if (!nextUser) return
+    notify(`Welcome back, ${nextUser.name.split(' ')[0]}`)
+    if (nextUser.role === 'SUPER_ADMIN') {
+      navigate(nextUser.emailVerified ? '/app/super-admin' : '/verify-email')
+    } else {
+      navigate(nextUser.emailVerified ? '/app/admin' : '/verify-email')
+    }
+  }
+
+  const handleDemo = (role: 'ADMIN' | 'SUPER_ADMIN') => {
+    loginDemo(role)
+    notify(`Signed in as ${roleLabel(role).toLowerCase()}`)
+    if (role === 'SUPER_ADMIN') {
+      navigate('/app/super-admin')
+    } else {
+      navigate('/app/admin')
+    }
+  }
+
+  const adminDemoAccounts = DEMO_ACCOUNTS.filter(
+    (account) => account.role === 'ADMIN' || account.role === 'SUPER_ADMIN'
+  )
+
+  return (
+    <AuthLayout
+      title="Admin Sign In"
+      subtitle="Access your admin dashboard to manage queues and cohorts."
+      footer={
+        <span className="text-slate-500 dark:text-slate-400">
+          Need member access?{' '}
+          <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400">
+            Member login
+          </Link>
+        </span>
+      }
+    >
+      <div className="mb-6 flex items-center gap-3 text-brand-600 dark:text-brand-400">
+        <IconShield className="h-5 w-5" />
+        <h2 className="text-lg font-semibold">Admin Portal</h2>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <Input
+          label="Username or Email"
+          name="userIdentifier"
+          type="text"
+          autoComplete="username"
+          placeholder="Enter your username or email"
+          icon={<IconUser className="h-4 w-4" />}
+          value={userIdentifier}
+          onChange={(event) => setUserIdentifier(event.target.value)}
+          required
+        />
+
+<Input
+          label="PIN"
+          name="pin"
+          type={showPin ? 'text' : 'password'}
+          autoComplete="current-password"
+          placeholder="Enter your 4-digit PIN"
+          icon={<IconLock className="h-4 w-4" />}
+          value={pin}
+          onChange={(event) => setPin(event.target.value)}
+          required
+          maxLength={4}
+          trailing={
+            <button
+              type="button"
+              onClick={() => setShowPin((value) => !value)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+            >
+              {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
+            </button>
+          }
+        />
+
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-[13px] text-slate-600 dark:text-slate-400">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800"
+            />
+            Remember me
+          </label>
+          <Link
+            to="/forgot-password"
+            className="text-[13px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+          >
+            Forgot PIN?
+          </Link>
+        </div>
+
+        {error ? (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+            {error}
+          </p>
+        ) : null}
+
+        <Button type="submit" size="lg" className="w-full" loading={loading}>
+          {loading ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+
+      <div className="mt-7">
+        <div className="flex items-center gap-3">
+          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            Or try a demo account
+          </span>
+          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {adminDemoAccounts.map((account) => (
+            <button
+              key={account.role}
+              type="button"
+              onClick={() => handleDemo(account.role as 'ADMIN' | 'SUPER_ADMIN')}
+              className="rounded-xl border border-slate-200 px-3 py-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/60 dark:border-slate-800 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10"
+            >
+              <div className="flex items-center gap-2">
+                {account.role === 'SUPER_ADMIN' ? (
+                  <IconUserCog className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                ) : (
+                  <IconShield className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                )}
+                <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">
+                  {account.label}
+                </span>
+              </div>
+              <span className="block truncate text-[10.5px] text-slate-500 dark:text-slate-400">
+                {account.email}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </AuthLayout>
+  )
+}

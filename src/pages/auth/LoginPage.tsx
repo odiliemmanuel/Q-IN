@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
-import { IconEye, IconEyeOff, IconLock, IconMail } from '../../components/icons'
+import { IconEye, IconEyeOff, IconLock, IconUsers, IconUser } from '../../components/icons'
 import { DEMO_ACCOUNTS, useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { roleLabel } from '../../lib/utils'
@@ -17,9 +17,9 @@ export function LoginPage() {
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [userIdentifier, setUserIdentifier] = useState('')
+  const [pin, setPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
 
   useEffect(() => {
     if (user?.emailVerified) navigate('/app/dashboard', { replace: true })
@@ -28,18 +28,22 @@ export function LoginPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
-    await login(email, password)
+    await login(userIdentifier, pin)
     const nextUser = useAuthStore.getState().user
     if (!nextUser) return
     notify(`Welcome back, ${nextUser.name.split(' ')[0]}`)
     navigate(nextUser.emailVerified ? '/app/dashboard' : '/verify-email')
   }
 
-  const handleDemo = (role: (typeof DEMO_ACCOUNTS)[number]['role']) => {
+  const handleDemo = (role: 'NATIVE') => {
     loginDemo(role)
     notify(`Signed in as ${roleLabel(role).toLowerCase()}`)
     navigate('/app/dashboard')
   }
+
+  const memberDemoAccounts = DEMO_ACCOUNTS.filter(
+    (account) => account.role === 'NATIVE'
+  )
 
   return (
     <AuthLayout
@@ -54,37 +58,43 @@ export function LoginPage() {
         </span>
       }
     >
+      <div className="mb-6 flex items-center gap-3 text-brand-600 dark:text-brand-400">
+        <IconUsers className="h-5 w-5" />
+        <h2 className="text-lg font-semibold">Member Portal</h2>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <Input
-          label="Email address"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          icon={<IconMail className="h-4 w-4" />}
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          label="Username or Email"
+          name="userIdentifier"
+          type="text"
+          autoComplete="username"
+          placeholder="Enter your username or email"
+          icon={<IconUser className="h-4 w-4" />}
+          value={userIdentifier}
+          onChange={(event) => setUserIdentifier(event.target.value)}
           required
         />
 
         <Input
-          label="Password"
-          name="password"
-          type={showPassword ? 'text' : 'password'}
+          label="PIN"
+          name="pin"
+          type={showPin ? 'text' : 'password'}
           autoComplete="current-password"
-          placeholder="Enter your password"
+          placeholder="Enter your 4-digit PIN"
           icon={<IconLock className="h-4 w-4" />}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          value={pin}
+          onChange={(event) => setPin(event.target.value)}
           required
+          maxLength={4}
           trailing={
             <button
               type="button"
-              onClick={() => setShowPassword((value) => !value)}
+              onClick={() => setShowPin((value) => !value)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
             >
-              {showPassword ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
+              {showPin ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
             </button>
           }
         />
@@ -101,7 +111,7 @@ export function LoginPage() {
             to="/forgot-password"
             className="text-[13px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
           >
-            Forgot password?
+            Forgot PIN?
           </Link>
         </div>
 
@@ -125,17 +135,20 @@ export function LoginPage() {
           <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          {DEMO_ACCOUNTS.map((account) => (
+        <div className="mt-4 grid gap-2">
+          {memberDemoAccounts.map((account) => (
             <button
               key={account.role}
               type="button"
-              onClick={() => handleDemo(account.role)}
+              onClick={() => handleDemo(account.role as 'NATIVE')}
               className="rounded-xl border border-slate-200 px-3 py-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/60 dark:border-slate-800 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10"
             >
-              <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">
-                {account.label}
-              </span>
+              <div className="flex items-center gap-2">
+                <IconUsers className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">
+                  {account.label}
+                </span>
+              </div>
               <span className="block truncate text-[10.5px] text-slate-500 dark:text-slate-400">
                 {account.email}
               </span>
