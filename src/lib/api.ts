@@ -1,7 +1,7 @@
 /**
  * Queueni backend client.
  *
- * Talks to the deployed Spring Boot API (https://queueni.onrender.com) using
+ * Talks to the deployed Spring Boot API (https://queueni.fly.dev) using
  * JWT bearer tokens. Every response is wrapped in the backend's
  * `{ success, message, data }` envelope, which this module unwraps.
  *
