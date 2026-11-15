@@ -27,10 +27,10 @@ export function LoginPage() {
     event.preventDefault()
     clearError()
     await login(email, password)
-    const nextUser = useAuthStore.getState().user
-    if (!nextUser) return
-    notify(`Welcome back, ${nextUser.name.split(' ')[0]}`)
-    navigate(nextUser.emailVerified ? '/app/dashboard' : '/verify-email')
+    const state = useAuthStore.getState()
+    if (state.error || !state.user) return
+    notify(`Welcome back, ${state.user.name.split(' ')[0]}`)
+    navigate(state.user.emailVerified ? '/app/dashboard' : '/verify-email')
   }
 
   return (
