@@ -101,7 +101,7 @@ export function Sidebar() {
 
       <div className="rounded-2xl border border-slate-200 p-2.5 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
-          <Avatar name={user?.name ?? 'Guest'} size="sm" />
+          <Avatar name={user?.name ?? 'Guest'} src={user?.avatar} size="sm" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-slate-900 dark:text-white">
               {user?.name ?? 'Guest'}

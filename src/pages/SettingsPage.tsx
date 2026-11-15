@@ -52,7 +52,7 @@ export function SettingsPage() {
             <CardHeader title="Profile" description="This is how you appear to your cohorts." />
             <CardBody className="space-y-4">
               <div className="flex items-center gap-4">
-                <Avatar name={name || 'Guest'} size="lg" />
+                <Avatar name={name || 'Guest'} src={user?.avatar} size="lg" />
                 <div>
                   <p className="text-[13.5px] font-semibold text-slate-900 dark:text-white">{name || 'Guest'}</p>
                   <div className="mt-1 flex items-center gap-2">

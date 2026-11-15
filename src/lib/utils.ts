@@ -77,6 +77,25 @@ export function uid(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
 }
 
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+export function generateJoinCode(): string {
+  let tail = ''
+  for (let i = 0; i < 4; i += 1) {
+    tail += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+  }
+  return tail
+}
+
+export function normalizeJoinCode(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\s+/g, '')
+}
+
+export function joinUrl(code: string): string {
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
+  return `${origin}/join?code=${encodeURIComponent(code)}`
+}
+
 export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name
 }

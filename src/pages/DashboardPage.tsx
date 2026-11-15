@@ -13,7 +13,7 @@ import {
 import { formatWait, greeting, timeAgo, waitMinutes } from '../lib/utils'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notifications'
-import { joinResultMessage, positionOf, useQueueStore } from '../stores/queue'
+import { positionOf, useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 
 export function DashboardPage() {
@@ -21,7 +21,6 @@ export function DashboardPage() {
   const queues = useQueueStore((state) => state.queues)
   const cohorts = useQueueStore((state) => state.cohorts)
   const activeTicket = useQueueStore((state) => state.activeTicket)
-  const joinQueue = useQueueStore((state) => state.joinQueue)
   const leaveQueue = useQueueStore((state) => state.leaveQueue)
   const notifications = useNotificationStore((state) => state.items)
   const notify = useUiStore((state) => state.notify)
@@ -38,11 +37,6 @@ export function DashboardPage() {
   const activeQueue = activeTicket ? queues.find((queue) => queue.id === activeTicket.queueId) : undefined
   const position = activeQueue && activeTicket ? positionOf(activeQueue, activeTicket.entryId) : 0
   const eta = activeQueue ? waitMinutes(position, activeQueue.avgServiceMinutes) : 0
-
-  const handleJoin = (queueId: string) => {
-    const result = joinQueue(queueId, user?.name ?? 'You')
-    notify(joinResultMessage(result), result === 'joined' ? 'success' : 'error')
-  }
 
   return (
     <div className="space-y-6">
@@ -131,9 +125,9 @@ export function DashboardPage() {
               </p>
             </div>
           </div>
-          <Link to="/app/queues">
+          <Link to="/join">
             <Button size="sm" rightIcon={<IconArrowRight className="h-4 w-4" />}>
-              Find a queue
+              Join with a code
             </Button>
           </Link>
         </Card>
@@ -170,8 +164,6 @@ export function DashboardPage() {
                   queue={queue}
                   cohortName={cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? 'Cohort'}
                   joined={activeTicket?.queueId === queue.id}
-                  blocked={Boolean(activeTicket)}
-                  onJoin={handleJoin}
                 />
               ))}
             </div>

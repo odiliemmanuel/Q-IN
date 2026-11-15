@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
-import { uid } from '../lib/utils'
+import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
 
-const KEY = 'qin:data:v1'
+const KEY = 'qin:data:v2'
 
 function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString()
@@ -58,6 +58,7 @@ const SEED_QUEUES: Queue[] = [
     capacity: 40,
     isOpen: true,
     avgServiceMinutes: 6,
+    joinCode: 'LAB-2048',
     createdAt: daysAgo(40),
     entries: [
       entry('Chinedu Eze', 34),
@@ -79,6 +80,7 @@ const SEED_QUEUES: Queue[] = [
     capacity: 20,
     isOpen: true,
     avgServiceMinutes: 12,
+    joinCode: 'MENT-7734',
     createdAt: daysAgo(38),
     entries: [
       entry('Tobi Alabi', 22),
@@ -96,6 +98,7 @@ const SEED_QUEUES: Queue[] = [
     capacity: 15,
     isOpen: false,
     avgServiceMinutes: 15,
+    joinCode: 'REVW-5521',
     createdAt: daysAgo(30),
     entries: [],
   },
@@ -107,6 +110,7 @@ const SEED_QUEUES: Queue[] = [
     capacity: 12,
     isOpen: true,
     avgServiceMinutes: 10,
+    joinCode: 'CRIT-9915',
     createdAt: daysAgo(26),
     entries: [
       entry('Ifeoma Chukwu', 18),
@@ -123,6 +127,7 @@ const SEED_QUEUES: Queue[] = [
     capacity: 25,
     isOpen: true,
     avgServiceMinutes: 8,
+    joinCode: 'SWAP-4432',
     createdAt: daysAgo(20),
     entries: [
       entry('Musa Danjuma', 26),
@@ -147,7 +152,13 @@ const seed: PersistedData = {
   activeTicket: null,
 }
 
-export type JoinResult = 'joined' | 'already-in-queue' | 'closed' | 'full' | 'missing'
+export type JoinResult =
+  | 'joined'
+  | 'already-in-queue'
+  | 'closed'
+  | 'full'
+  | 'missing'
+  | 'invalid-code'
 
 export function joinResultMessage(result: JoinResult): string {
   switch (result) {
@@ -159,13 +170,16 @@ export function joinResultMessage(result: JoinResult): string {
       return 'This queue is closed right now.'
     case 'full':
       return 'This queue is full — try again once someone is served.'
+    case 'invalid-code':
+      return 'That code does not match any open queue.'
     default:
       return 'That queue could not be found.'
   }
 }
 
 interface QueueState extends PersistedData {
-  joinQueue: (queueId: string, name: string) => JoinResult
+  joinQueue: (queueId: string, name: string, avatar?: string) => JoinResult
+  joinByCode: (code: string, name: string, avatar?: string) => JoinResult
   leaveQueue: () => void
   callNext: (queueId: string) => void
   serveEntry: (queueId: string, entryId: string) => void
@@ -193,7 +207,7 @@ function persist(state: PersistedData) {
 export const useQueueStore = create<QueueState>((set, get) => ({
   ...loadJSON<PersistedData>(KEY, seed),
 
-  joinQueue: (queueId, name) => {
+  joinQueue: (queueId, name, avatar) => {
     const { queues, activeTicket } = get()
     const queue = queues.find((item) => item.id === queueId)
     if (!queue) return 'missing'
@@ -208,6 +222,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       name,
       joinedAt: new Date().toISOString(),
       status: 'WAITING',
+      avatar,
     }
 
     const nextQueues = queues.map((item) =>
@@ -225,6 +240,17 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       .getState()
       .push('You joined the queue', `You are in line for ${queue.name}. We'll let you know when you're close.`)
     return 'joined'
+  },
+
+  joinByCode: (code, name, avatar) => {
+    const normalized = normalizeJoinCode(code)
+    if (!normalized) return 'invalid-code'
+    const { queues } = get()
+    const queue = queues.find(
+      (item) => item.joinCode.toUpperCase() === normalized || item.id === normalized.toLowerCase(),
+    )
+    if (!queue) return 'invalid-code'
+    return get().joinQueue(queue.id, name, avatar)
   },
 
   leaveQueue: () => {
@@ -355,6 +381,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         capacity: input.capacity,
         isOpen: true,
         avgServiceMinutes: input.avgServiceMinutes,
+        joinCode: generateJoinCode(),
         entries: [],
         createdAt: new Date().toISOString(),
       },

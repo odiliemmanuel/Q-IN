@@ -314,10 +314,13 @@ export function Textarea({ label, hint, className, id, ...props }: TextareaProps
 
 export function Avatar({
   name,
+  src,
   size = 'md',
   className,
 }: {
   name: string
+  /** Optional image (e.g. the user's caricature) shown instead of initials. */
+  src?: string
   size?: 'xs' | 'sm' | 'md' | 'lg'
   className?: string
 }) {
@@ -326,6 +329,16 @@ export function Avatar({
     sm: 'h-9 w-9 text-[11px]',
     md: 'h-10 w-10 text-xs',
     lg: 'h-14 w-14 text-base',
+  }
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name ? `Avatar of ${name}` : 'Avatar'}
+        className={cn('inline-flex shrink-0 rounded-full object-cover', sizes[size], className)}
+        aria-hidden="true"
+      />
+    )
   }
   return (
     <span

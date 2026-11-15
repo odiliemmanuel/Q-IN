@@ -5,12 +5,6 @@ import { uid } from '../lib/utils'
 
 const USER_KEY = 'qin:user'
 
-export const DEMO_ACCOUNTS: Array<{ role: Role; email: string; name: string; label: string }> = [
-  { role: 'NATIVE', email: 'member@qin.app', name: 'Ada Okafor', label: 'Member' },
-  { role: 'ADMIN', email: 'admin@qin.app', name: 'Tunde Bello', label: 'Admin' },
-  { role: 'SUPER_ADMIN', email: 'super@qin.app', name: 'Zainab Musa', label: 'Super admin' },
-]
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function roleForEmail(email: string): Role {
@@ -34,10 +28,9 @@ interface AuthState {
   loading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<void>
-  loginDemo: (role: Role) => void
+  register: (name: string, email: string, password: string, avatar?: string) => Promise<void>
   verifyEmail: () => void
-  updateProfile: (patch: Partial<Pick<User, 'name'>>) => void
+  updateProfile: (patch: Partial<Pick<User, 'name' | 'avatar'>>) => void
   logout: () => void
   clearError: () => void
 }
@@ -60,12 +53,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return
     }
 
-    const demo = DEMO_ACCOUNTS.find((account) => account.email === email.toLowerCase())
     const user: User = {
-      id: demo ? `demo_${demo.role.toLowerCase()}` : uid('usr'),
-      name: demo?.name ?? nameForEmail(email),
+      id: uid('usr'),
+      name: nameForEmail(email),
       email: email.toLowerCase(),
-      role: demo?.role ?? roleForEmail(email),
+      role: roleForEmail(email),
       emailVerified: true,
       createdAt: new Date().toISOString(),
     }
@@ -74,7 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, loading: false, error: null })
   },
 
-  register: async (name, email, password) => {
+  register: async (name, email, password, avatar) => {
     set({ loading: true, error: null })
     await sleep(650)
 
@@ -98,24 +90,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       role: 'NATIVE',
       emailVerified: false,
       createdAt: new Date().toISOString(),
+      avatar,
     }
 
     saveJSON(USER_KEY, user)
     set({ user, loading: false, error: null })
-  },
-
-  loginDemo: (role) => {
-    const account = DEMO_ACCOUNTS.find((item) => item.role === role) ?? DEMO_ACCOUNTS[0]
-    const user: User = {
-      id: `demo_${role.toLowerCase()}`,
-      name: account.name,
-      email: account.email,
-      role,
-      emailVerified: true,
-      createdAt: new Date().toISOString(),
-    }
-    saveJSON(USER_KEY, user)
-    set({ user, error: null })
   },
 
   verifyEmail: () => {
