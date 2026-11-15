@@ -1,4 +1,4 @@
-// API Configuration - Updated to match Swagger spec from https://queueni.onrender.com
+// API Configuration - Updated to match Swagger spec from https://queueni.fly.dev
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
