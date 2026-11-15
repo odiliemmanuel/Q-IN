@@ -1,139 +1,11 @@
 import { create } from 'zustand'
 import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
-import { uid } from '../lib/utils'
+import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
+import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, type BackendQueueUser } from '../lib/api'
 
-const KEY = 'qin:data:v1'
-
-function minutesAgo(minutes: number): string {
-  return new Date(Date.now() - minutes * 60_000).toISOString()
-}
-
-function daysAgo(days: number): string {
-  return new Date(Date.now() - days * 86_400_000).toISOString()
-}
-
-function entry(name: string, minutes: number, status: QueueEntry['status'] = 'WAITING'): QueueEntry {
-  return { id: uid('ent'), name, joinedAt: minutesAgo(minutes), status }
-}
-
-const SEED_COHORTS: Cohort[] = [
-  {
-    id: 'cohort_frontend',
-    name: 'Frontend Engineering',
-    description: 'Cohort 12 · React, TypeScript and design systems',
-    memberCount: 128,
-    createdAt: daysAgo(120),
-  },
-  {
-    id: 'cohort_data',
-    name: 'Data Science',
-    description: 'Cohort 7 · Python, statistics and applied ML',
-    memberCount: 94,
-    createdAt: daysAgo(96),
-  },
-  {
-    id: 'cohort_design',
-    name: 'Product Design',
-    description: 'Cohort 4 · Research, prototyping and critique',
-    memberCount: 61,
-    createdAt: daysAgo(74),
-  },
-  {
-    id: 'cohort_backend',
-    name: 'Backend Engineering',
-    description: 'Cohort 9 · APIs, databases and distributed systems',
-    memberCount: 110,
-    createdAt: daysAgo(58),
-  },
-]
-
-const SEED_QUEUES: Queue[] = [
-  {
-    id: 'queue_lab',
-    name: 'Lab Equipment Checkout',
-    cohortId: 'cohort_frontend',
-    description: 'Collect laptops, adapters and testing devices for the week.',
-    capacity: 40,
-    isOpen: true,
-    avgServiceMinutes: 6,
-    createdAt: daysAgo(40),
-    entries: [
-      entry('Chinedu Eze', 34),
-      entry('Amara Nwosu', 29),
-      entry('Adaeze Nwankwo', 24),
-      entry('Femi Adeyemi', 21),
-      entry('Grace Etim', 17),
-      entry('Ibrahim Sule', 12),
-      entry('Ngozi Obi', 9),
-      entry('Kelechi Umeh', 5),
-      entry('Sade Lawal', 2),
-    ],
-  },
-  {
-    id: 'queue_mentor',
-    name: 'Mentor Office Hours',
-    cohortId: 'cohort_frontend',
-    description: '15-minute 1:1 sessions with a senior engineer.',
-    capacity: 20,
-    isOpen: true,
-    avgServiceMinutes: 12,
-    createdAt: daysAgo(38),
-    entries: [
-      entry('Tobi Alabi', 22),
-      entry('Halima Yusuf', 16),
-      entry('Emeka Duru', 11),
-      entry('Bisi Ogunleye', 6),
-      entry('Yusuf Bello', 2),
-    ],
-  },
-  {
-    id: 'queue_review',
-    name: 'Project Review',
-    cohortId: 'cohort_data',
-    description: 'Present your capstone and collect structured feedback.',
-    capacity: 15,
-    isOpen: false,
-    avgServiceMinutes: 15,
-    createdAt: daysAgo(30),
-    entries: [],
-  },
-  {
-    id: 'queue_critique',
-    name: 'Design Critique',
-    cohortId: 'cohort_design',
-    description: 'Bring one flow and get critique from the design pod.',
-    capacity: 12,
-    isOpen: true,
-    avgServiceMinutes: 10,
-    createdAt: daysAgo(26),
-    entries: [
-      entry('Ifeoma Chukwu', 18),
-      entry('David Ojo', 14),
-      entry('Zara Ahmed', 9),
-      entry('Peter Okon', 4),
-    ],
-  },
-  {
-    id: 'queue_swap',
-    name: 'Code Review Swap',
-    cohortId: 'cohort_backend',
-    description: 'Pair up and review a pull request end to end.',
-    capacity: 25,
-    isOpen: true,
-    avgServiceMinutes: 8,
-    createdAt: daysAgo(20),
-    entries: [
-      entry('Musa Danjuma', 26),
-      entry('Chioma Ibe', 19),
-      entry('Segun Balogun', 13),
-      entry('Aisha Garba', 7),
-      entry('Uche Nnamdi', 3),
-      entry('Lara Adebayo', 1),
-    ],
-  },
-]
+const KEY = 'qin:data:v2'
 
 interface PersistedData {
   cohorts: Cohort[]
@@ -141,13 +13,19 @@ interface PersistedData {
   activeTicket: ActiveTicket | null
 }
 
-const seed: PersistedData = {
-  cohorts: SEED_COHORTS,
-  queues: SEED_QUEUES,
+const emptySeed: PersistedData = {
+  cohorts: [],
+  queues: [],
   activeTicket: null,
 }
 
-export type JoinResult = 'joined' | 'already-in-queue' | 'closed' | 'full' | 'missing'
+export type JoinResult =
+  | 'joined'
+  | 'already-in-queue'
+  | 'closed'
+  | 'full'
+  | 'missing'
+  | 'invalid-code'
 
 export function joinResultMessage(result: JoinResult): string {
   switch (result) {
@@ -159,14 +37,51 @@ export function joinResultMessage(result: JoinResult): string {
       return 'This queue is closed right now.'
     case 'full':
       return 'This queue is full — try again once someone is served.'
+    case 'invalid-code':
+      return 'That code does not match any open queue.'
     default:
       return 'That queue could not be found.'
   }
 }
 
+/** Precise backend failure message for the most recent join attempt (API mode). */
+function mapBackendUserToEntry(user: BackendQueueUser): QueueEntry {
+  return {
+    id: `bqe_${user.id}`,
+    name: `${user.firstName} ${user.lastName}`.trim() || user.username,
+    joinedAt: new Date().toISOString(),
+    status: 'WAITING',
+    avatar: user.caricatureUrl ?? undefined,
+  }
+}
+
+/** Map a backend queue to the frontend Queue shape. */
+function mapBackendQueue(backend: { id: string; maxCapacity: number; isOpen: boolean; isFull: boolean; createdAt: string }, index: number, users?: BackendQueueUser[]): Queue {
+  return {
+    id: backend.id,
+    cohortId: 'cohort_live',
+    name: `Live queue ${index > 0 ? `#${index + 1}` : ''}`.trim(),
+    description: 'Queueni live queue — join with the rotating access code.',
+    capacity: backend.maxCapacity,
+    isOpen: backend.isOpen,
+    avgServiceMinutes: 6,
+    joinCode: 'TOTP',
+    createdAt: backend.createdAt,
+    entries: (users ?? [])
+      .filter((user) => user.inQueue)
+      .sort((a, b) => a.numberInQueue - b.numberInQueue)
+      .map((user) => mapBackendUserToEntry(user)),
+  }
+}
+
 interface QueueState extends PersistedData {
-  joinQueue: (queueId: string, name: string) => JoinResult
-  leaveQueue: () => void
+  /** Precise backend failure message for the latest join attempt (API mode). */
+  lastJoinError: string | null
+  joinQueue: (queueId: string, name: string, avatar?: string) => JoinResult
+  joinByCode: (code: string, name: string, avatar?: string) => Promise<JoinResult>
+  leaveQueue: () => Promise<void>
+  /** Pull queues + members from the backend and merge into local state. */
+  hydrateFromBackend: () => Promise<void>
   callNext: (queueId: string) => void
   serveEntry: (queueId: string, entryId: string) => void
   skipEntry: (queueId: string, entryId: string) => void
@@ -178,7 +93,7 @@ interface QueueState extends PersistedData {
     description: string
     capacity: number
     avgServiceMinutes: number
-  }) => void
+  }) => Promise<void>
   resetDemoData: () => void
 }
 
@@ -191,9 +106,10 @@ function persist(state: PersistedData) {
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
-  ...loadJSON<PersistedData>(KEY, seed),
+  ...loadJSON<PersistedData>(KEY, emptySeed),
+  lastJoinError: null,
 
-  joinQueue: (queueId, name) => {
+  joinQueue: (queueId, name, avatar) => {
     const { queues, activeTicket } = get()
     const queue = queues.find((item) => item.id === queueId)
     if (!queue) return 'missing'
@@ -208,6 +124,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       name,
       joinedAt: new Date().toISOString(),
       status: 'WAITING',
+      avatar,
     }
 
     const nextQueues = queues.map((item) =>
@@ -227,9 +144,123 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     return 'joined'
   },
 
-  leaveQueue: () => {
+  hydrateFromBackend: async () => {
+    if (!loadTokens()) return
+    try {
+      const { queues: backendQueues } = await fetchAllQueues()
+      const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
+      if (!mapped.length) return
+
+      const current = get().queues
+      const merged = [...mapped]
+      for (const local of current) {
+        if (!merged.some((item) => item.id === local.id)) merged.push(local)
+      }
+      set({ queues: merged })
+      persist({ cohorts: get().cohorts, queues: merged, activeTicket: get().activeTicket })
+    } catch {
+      // Backend unreachable — keep whatever local state exists.
+    }
+  },
+
+  joinByCode: async (code, name, avatar) => {
+    const normalized = normalizeJoinCode(code)
+    if (!normalized) {
+      set({ lastJoinError: null })
+      return 'invalid-code'
+    }
+
+    // API mode: the backend validates the current 6-digit TOTP access code.
+    const tokens = loadTokens()
+    if (tokens) {
+      set({ lastJoinError: null })
+      if (get().activeTicket) return 'already-in-queue'
+      try {
+        const entry = await enterQueue(tokens.userId, normalized)
+        // Find (or create) the local mirror of the backend queue.
+        let queues = get().queues
+        let queue = queues.find((item) => item.id === entry.queueId)
+        if (!queue) {
+          try {
+            const { queues: backendQueues } = await fetchAllQueues()
+            const backend = backendQueues.find((item) => item.id === entry.queueId)
+            queue = backend
+              ? mapBackendQueue(backend, backendQueues.indexOf(backend))
+              : mapBackendQueue(
+                  { id: entry.queueId, maxCapacity: 40, isOpen: true, isFull: false, createdAt: new Date().toISOString() },
+                  0,
+                )
+          } catch {
+            queue = mapBackendQueue(
+              { id: entry.queueId, maxCapacity: 40, isOpen: true, isFull: false, createdAt: new Date().toISOString() },
+              0,
+            )
+          }
+          queues = [queue, ...queues]
+        }
+        if (!queue.isOpen) {
+          set({ lastJoinError: 'That queue is closed right now.' })
+          return 'closed'
+        }
+
+        const newEntry: QueueEntry = {
+          id: `bqe_self_${tokens.userId}`,
+          name,
+          joinedAt: new Date().toISOString(),
+          status: 'WAITING',
+          avatar,
+        }
+        const nextQueues = queues.map((item) =>
+          item.id === queue.id ? { ...item, entries: [...item.entries, newEntry] } : item,
+        )
+        const nextTicket: ActiveTicket = {
+          queueId: queue.id,
+          entryId: newEntry.id,
+          joinedAt: newEntry.joinedAt,
+        }
+        persist({ cohorts: get().cohorts, queues: nextQueues, activeTicket: nextTicket })
+        set({ queues: nextQueues, activeTicket: nextTicket })
+        useNotificationStore
+          .getState()
+          .push('You joined the queue', `You are in line for ${queue.name}. We'll let you know when you're close.`)
+        return 'joined'
+      } catch (error) {
+        set({
+          lastJoinError:
+            error instanceof ApiError
+              ? error.message
+              : 'Could not reach the backend — it may be waking up. Try again shortly.',
+        })
+        return 'invalid-code'
+      }
+    }
+
+    // Local mode: local join codes.
+    const { queues } = get()
+    const queue = queues.find(
+      (item) => item.joinCode.toUpperCase() === normalized || item.id === normalized.toLowerCase(),
+    )
+    if (!queue) return 'invalid-code'
+    return get().joinQueue(queue.id, name, avatar)
+  },
+
+  leaveQueue: async () => {
     const { queues, activeTicket, cohorts } = get()
     if (!activeTicket) return
+
+    // API mode: tell the backend first.
+    const tokens = loadTokens()
+    if (tokens) {
+      try {
+        await exitQueue(tokens.userId)
+      } catch (error) {
+        if (error instanceof ApiError && error.status >= 400) {
+          useNotificationStore.getState().push('Could not leave', error.message)
+          return
+        }
+        // Unreachable backend — fall through to the local leave.
+      }
+    }
 
     const nextQueues = queues.map((queue) =>
       queue.id === activeTicket.queueId
@@ -344,8 +375,22 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     set({ cohorts: nextCohorts })
   },
 
-  addQueue: (input) => {
+  addQueue: async (input) => {
     const { cohorts, queues, activeTicket } = get()
+
+    // API mode: create on the backend too (best effort — the backend only
+    // allows one open queue at a time).
+    if (loadTokens()) {
+      try {
+        await createQueueOnBackend({ queueId: input.name, maxCapacity: input.capacity })
+      } catch (error) {
+        if (error instanceof ApiError && error.status >= 400) {
+          useNotificationStore.getState().push('Backend queue not created', error.message)
+        }
+        // Unreachable backend — keep the local creation.
+      }
+    }
+
     const nextQueues: Queue[] = [
       {
         id: uid('queue'),
@@ -355,6 +400,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         capacity: input.capacity,
         isOpen: true,
         avgServiceMinutes: input.avgServiceMinutes,
+        joinCode: generateJoinCode(),
         entries: [],
         createdAt: new Date().toISOString(),
       },
@@ -365,8 +411,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   resetDemoData: () => {
-    persist(seed)
-    set({ ...seed })
+    persist(emptySeed)
+    set({ ...emptySeed })
   },
 }))
 

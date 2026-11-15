@@ -9,6 +9,7 @@ import { AdminLoginPage } from './pages/auth/AdminLoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
+import { JoinPage } from './pages/JoinPage'
 import { LandingPage } from './pages/LandingPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { QueuesPage } from './pages/QueuesPage'
@@ -39,6 +40,14 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route
+          path="/join"
+          element={
+            <ProtectedRoute>
+              <JoinPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/app"

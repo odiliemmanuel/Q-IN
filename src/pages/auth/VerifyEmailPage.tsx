@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui'
-import { IconMail, IconShield } from '../../components/icons'
+import { IconMail } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { AuthLayout } from './AuthLayout'
@@ -108,14 +108,6 @@ export function VerifyEmailPage() {
         </span>
       }
     >
-      <div className="mb-5 flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-3 dark:border-brand-500/25 dark:bg-brand-500/10">
-        <IconShield className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" />
-        <p className="text-[12.5px] leading-relaxed text-brand-900 dark:text-brand-200">
-          <span className="font-semibold">Demo mode:</span> use any 6 digits (for example{' '}
-          <span className="font-mono font-semibold">123456</span>) to continue.
-        </p>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex justify-between gap-2" onPaste={handlePaste}>
           {digits.map((digit, index) => (

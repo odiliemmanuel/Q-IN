@@ -1,11 +1,6 @@
 import { api } from './client'
 import { API_ENDPOINTS } from './config'
 
-export interface UpdatePasswordRequest {
-  oldPassword: string
-  newPassword: string
-}
-
 export const usersApi = {
   async uploadCaricature(userId: string, file: File): Promise<void> {
     const formData = new FormData()
@@ -13,7 +8,7 @@ export const usersApi = {
     return api.upload<void>(API_ENDPOINTS.users.caricature(userId), formData)
   },
 
-  async updatePassword(data: UpdatePasswordRequest): Promise<void> {
-    return api.patch<void>(API_ENDPOINTS.users.updatePassword, data)
+  async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
+    return api.patch<void>(API_ENDPOINTS.auth.updatePassword, { oldPassword, newPassword })
   },
 }

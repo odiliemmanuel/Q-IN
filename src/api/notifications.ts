@@ -5,7 +5,7 @@ export interface Notification {
   id: string
   title: string
   message: string
-  type: 'QUEUE_JOINED' | 'QUEUE_LEFT' | 'QUEUE_CALLED' | 'QUEUE_UPDATED' | 'SYSTEM' | string
+  type: 'QUEUE_JOINED' | 'QUEUE_LEFT' | 'QUEUE_POSITION_UPDATE' | 'QUEUE_OPENED' | 'QUEUE_CLOSED' | 'QUEUE_CAPACITY_CHANGED' | 'ADMIN_CREATED' | 'ADMIN_PROMOTED' | 'ADMIN_SUSPENDED' | 'ADMIN_DELETED' | 'COHORT_CREATED' | 'COHORT_DISABLED' | 'COHORT_DELETED' | 'USER_REGISTERED' | 'EMAIL_VERIFIED' | 'PASSWORD_RESET' | 'NEW_LOGIN_ALERT' | 'SYSTEM_ANNOUNCEMENT' | string
   read: boolean
   relatedEntityId?: string
   relatedEntityType?: string

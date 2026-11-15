@@ -1,8 +1,15 @@
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { useQueueStore } from '../../stores/queue'
 
 export function AppShell() {
+  // Pull queues and members from the backend when a session is active.
+  useEffect(() => {
+    void useQueueStore.getState().hydrateFromBackend()
+  }, [])
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Sidebar />

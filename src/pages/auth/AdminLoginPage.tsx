@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
-import { IconEye, IconEyeOff, IconLock, IconShield, IconUserCog, IconUser } from '../../components/icons'
-import { DEMO_ACCOUNTS, useAuthStore } from '../../stores/auth'
+import { IconEye, IconEyeOff, IconLock, IconShield, IconUser } from '../../components/icons'
+import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
-import { roleLabel } from '../../lib/utils'
 import { AuthLayout } from './AuthLayout'
 
 export function AdminLoginPage() {
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
-  const loginDemo = useAuthStore((state) => state.loginDemo)
   const loading = useAuthStore((state) => state.loading)
   const error = useAuthStore((state) => state.error)
   const clearError = useAuthStore((state) => state.clearError)
@@ -34,9 +32,24 @@ export function AdminLoginPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
-    const isSuperAdmin = userIdentifier.toLowerCase().startsWith('super')
-    const isAdmin = userIdentifier.toLowerCase().startsWith('admin') || isSuperAdmin
-    await login(userIdentifier, pin, isAdmin, isSuperAdmin)
+
+    try {
+      // Try admin login first
+      await login(userIdentifier, pin, true, false)
+    } catch (adminError) {
+      // If admin login fails with 401, try super-admin login
+      const isUnauthorized = adminError instanceof Error && adminError.message.includes('401')
+      if (isUnauthorized) {
+        try {
+          await login(userIdentifier, pin, false, true)
+        } catch (superAdminError) {
+          throw superAdminError
+        }
+      } else {
+        throw adminError
+      }
+    }
+
     const nextUser = useAuthStore.getState().user
     if (!nextUser) return
     notify(`Welcome back, ${nextUser.name.split(' ')[0]}`)
@@ -46,20 +59,6 @@ export function AdminLoginPage() {
       navigate(nextUser.emailVerified ? '/app/admin' : '/verify-email')
     }
   }
-
-  const handleDemo = (role: 'ADMIN' | 'SUPER_ADMIN') => {
-    loginDemo(role)
-    notify(`Signed in as ${roleLabel(role).toLowerCase()}`)
-    if (role === 'SUPER_ADMIN') {
-      navigate('/app/super-admin')
-    } else {
-      navigate('/app/admin')
-    }
-  }
-
-  const adminDemoAccounts = DEMO_ACCOUNTS.filter(
-    (account) => account.role === 'ADMIN' || account.role === 'SUPER_ADMIN'
-  )
 
   return (
     <AuthLayout
@@ -92,7 +91,7 @@ export function AdminLoginPage() {
           required
         />
 
-<Input
+        <Input
           label="PIN"
           name="pin"
           type={showPin ? 'text' : 'password'}
@@ -141,41 +140,6 @@ export function AdminLoginPage() {
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
-
-      <div className="mt-7">
-        <div className="flex items-center gap-3">
-          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-            Or try a demo account
-          </span>
-          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-        </div>
-
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {adminDemoAccounts.map((account) => (
-            <button
-              key={account.role}
-              type="button"
-              onClick={() => handleDemo(account.role as 'ADMIN' | 'SUPER_ADMIN')}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/60 dark:border-slate-800 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10"
-            >
-              <div className="flex items-center gap-2">
-                {account.role === 'SUPER_ADMIN' ? (
-                  <IconUserCog className="h-4 w-4 text-brand-600 dark:text-brand-400" />
-                ) : (
-                  <IconShield className="h-4 w-4 text-brand-600 dark:text-brand-400" />
-                )}
-                <span className="block text-[12px] font-semibold text-slate-900 dark:text-white">
-                  {account.label}
-                </span>
-              </div>
-              <span className="block truncate text-[10.5px] text-slate-500 dark:text-slate-400">
-                {account.email}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
     </AuthLayout>
   )
 }

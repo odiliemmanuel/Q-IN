@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { QueueCard } from '../components/QueueCard'
 import { Button, Card, EmptyState, Input, Modal, Select, Textarea } from '../components/ui'
 import { IconPlus, IconQueue, IconSearch } from '../components/icons'
 import { useAuthStore } from '../stores/auth'
-import { joinResultMessage, useQueueStore } from '../stores/queue'
+import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 import { cn } from '../lib/utils'
 
@@ -13,10 +13,10 @@ type Tab = 'all' | 'open' | 'joined'
 
 export function QueuesPage() {
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const queues = useQueueStore((state) => state.queues)
   const cohorts = useQueueStore((state) => state.cohorts)
   const activeTicket = useQueueStore((state) => state.activeTicket)
-  const joinQueue = useQueueStore((state) => state.joinQueue)
   const addQueue = useQueueStore((state) => state.addQueue)
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
@@ -60,12 +60,7 @@ export function QueuesPage() {
     })
   }, [queues, cohorts, q, cohortFilter, tab, activeTicket])
 
-  const handleJoin = (queueId: string) => {
-    const result = joinQueue(queueId, user?.name ?? 'You')
-    notify(joinResultMessage(result), result === 'joined' ? 'success' : 'error')
-  }
-
-  const submitQueue = (event: React.FormEvent) => {
+  const submitQueue = async (event: React.FormEvent) => {
     event.preventDefault()
     if (form.name.trim().length < 3) {
       setFormError('Give the queue a name of at least 3 characters.')
@@ -75,7 +70,7 @@ export function QueuesPage() {
       setFormError('Choose a cohort for this queue.')
       return
     }
-    addQueue({
+    await addQueue({
       name: form.name.trim(),
       cohortId: form.cohortId,
       description: form.description.trim() || 'No description yet.',
@@ -98,13 +93,17 @@ export function QueuesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Queues"
-        description="Browse every line across your cohorts and join with one tap."
+        description="Browse every line across your cohorts — join a queue with a code or QR scan."
         actions={
           canManage ? (
             <Button leftIcon={<IconPlus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
               New queue
             </Button>
-          ) : undefined
+          ) : (
+            <Button leftIcon={<IconQueue className="h-4 w-4" />} onClick={() => navigate('/join')}>
+              Join with code
+            </Button>
+          )
         }
       />
 
@@ -170,8 +169,6 @@ export function QueuesPage() {
               queue={queue}
               cohortName={cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? 'Cohort'}
               joined={activeTicket?.queueId === queue.id}
-              blocked={Boolean(activeTicket)}
-              onJoin={handleJoin}
             />
           ))}
         </div>

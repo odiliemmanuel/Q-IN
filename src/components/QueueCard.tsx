@@ -8,15 +8,11 @@ export function QueueCard({
   queue,
   cohortName,
   joined = false,
-  blocked = false,
-  onJoin,
   className,
 }: {
   queue: Queue
   cohortName: string
   joined?: boolean
-  blocked?: boolean
-  onJoin?: (queueId: string) => void
   className?: string
 }) {
   const waiting = queue.entries.filter((entry) => entry.status === 'WAITING').length
@@ -53,19 +49,9 @@ export function QueueCard({
       <div className="mt-4 flex gap-2">
         <Link to={`/app/queues/${queue.id}`} className="flex-1">
           <Button variant="outline" size="sm" className="w-full">
-            View queue
+            {joined ? 'View your position' : 'View queue'}
           </Button>
         </Link>
-        {onJoin ? (
-          <Button
-            size="sm"
-            onClick={() => onJoin(queue.id)}
-            disabled={!queue.isOpen || joined || blocked}
-            title={blocked && !joined ? 'Leave your current queue first' : undefined}
-          >
-            {joined ? 'Joined' : 'Join'}
-          </Button>
-        ) : null}
       </div>
     </Card>
   )

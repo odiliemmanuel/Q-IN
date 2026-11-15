@@ -5,12 +5,6 @@ import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
 
-export const DEMO_ACCOUNTS: Array<{ role: Role; email: string; name: string; label: string }> = [
-  { role: 'NATIVE', email: 'member@qin.app', name: 'Ada Okafor', label: 'Member' },
-  { role: 'ADMIN', email: 'admin@qin.app', name: 'Tunde Bello', label: 'Admin' },
-  { role: 'SUPER_ADMIN', email: 'super@qin.app', name: 'Zainab Musa', label: 'Super admin' },
-]
-
 function mapLoginResponseToUser(response: LoginResponse): User {
   return {
     id: response.userId,
@@ -35,18 +29,18 @@ interface AuthState {
     email: string
     phoneNumber: string
     whatsappNumber: string
-    gender: 'MALE' | 'FEMALE' | 'OTHER'
+    gender: 'MALE' | 'FEMALE'
     cohortId: string
   }) => Promise<void>
-  loginDemo: (role: Role) => void
   verifyEmail: (email: string, otp: string) => Promise<void>
   verifyEmailAndLogin: (email: string, otp: string) => Promise<void>
   resendVerification: (email: string) => Promise<void>
   forgotPassword: (email: string) => Promise<void>
   resetPassword: (token: string, newPassword: string) => Promise<void>
   refreshToken: () => Promise<void>
+  updatePassword: (oldPassword: string, newPassword: string) => Promise<void>
   updateProfile: (patch: Partial<Pick<User, 'name'>>) => void
-  logout: () => void
+  logout: () => Promise<void>
   clearError: () => void
   fetchUserProfile: () => Promise<void>
 }
@@ -101,20 +95,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ loading: false, error: message })
       throw error
     }
-  },
-
-  loginDemo: (role) => {
-    const account = DEMO_ACCOUNTS.find((item) => item.role === role) ?? DEMO_ACCOUNTS[0]
-    const user: User = {
-      id: `demo_${role.toLowerCase()}`,
-      name: account.name,
-      email: account.email,
-      role,
-      emailVerified: true,
-      createdAt: new Date().toISOString(),
-    }
-    saveJSON(USER_KEY, user)
-    set({ user, error: null })
   },
 
   verifyEmail: async (email, otp) => {
@@ -200,6 +180,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem(USER_KEY)
       set({ user: null, error: null })
       throw new Error('Session expired')
+    }
+  },
+
+  updatePassword: async (oldPassword, newPassword) => {
+    set({ loading: true, error: null })
+    try {
+      await authApi.updatePassword({ oldPassword, newPassword })
+      set({ loading: false, error: null })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Password update failed.'
+      set({ loading: false, error: message })
+      throw error
     }
   },
 

@@ -20,7 +20,7 @@ export interface CreateAdminRequest {
   userName: string
   email: string
   tempPin: string
-  gender: 'MALE' | 'FEMALE' | 'OTHER'
+  gender: 'MALE' | 'FEMALE'
   phoneNumber: string
   whatsappNumber: string
 }

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { PageHeader } from '../components/PageHeader'
 import {
   Avatar,
@@ -8,11 +10,12 @@ import {
   CardBody,
   CardHeader,
   EmptyState,
+  Input,
+  Modal,
   Progress,
 } from '../components/ui'
 import {
   IconArrowLeft,
-  IconArrowRight,
   IconCheckCircle,
   IconClock,
   IconPause,
@@ -20,9 +23,14 @@ import {
   IconQueue,
   IconUsers,
 } from '../components/icons'
-import { cn, formatTime, formatWait, timeAgo, waitMinutes } from '../lib/utils'
+import { cn, formatTime, formatWait, joinUrl, timeAgo, waitMinutes } from '../lib/utils'
 import { useAuthStore } from '../stores/auth'
-import { joinResultMessage, positionOf, useQueueStore } from '../stores/queue'
+import {
+  joinResultMessage,
+  positionOf,
+  useQueueStore,
+  type JoinResult,
+} from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 
 export function QueueDetailPage() {
@@ -31,7 +39,6 @@ export function QueueDetailPage() {
   const queues = useQueueStore((state) => state.queues)
   const cohorts = useQueueStore((state) => state.cohorts)
   const activeTicket = useQueueStore((state) => state.activeTicket)
-  const joinQueue = useQueueStore((state) => state.joinQueue)
   const leaveQueue = useQueueStore((state) => state.leaveQueue)
   const callNext = useQueueStore((state) => state.callNext)
   const serveEntry = useQueueStore((state) => state.serveEntry)
@@ -39,6 +46,11 @@ export function QueueDetailPage() {
   const toggleQueue = useQueueStore((state) => state.toggleQueue)
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
+
+  const [showQr, setShowQr] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [gateCode, setGateCode] = useState('')
+  const [gateError, setGateError] = useState<string | null>(null)
 
   const queue = queues.find((item) => item.id === queueId)
 
@@ -73,9 +85,42 @@ export function QueueDetailPage() {
   const position = activeTicket && isMine ? positionOf(queue, activeTicket.entryId) : 0
   const eta = waitMinutes(position, queue.avgServiceMinutes)
 
-  const handleJoin = () => {
-    const result = joinQueue(queue.id, user?.name ?? 'You')
-    notify(joinResultMessage(result), result === 'joined' ? 'success' : 'error')
+  // Only admins and people who have already joined (via code or QR) can see
+  // who is on the line — members must join first.
+  const canViewLine = isAdmin || isMine
+
+  const openQr = async () => {
+    const url = await QRCode.toDataURL(joinUrl(queue.joinCode), {
+      width: 320,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    })
+    setQrDataUrl(url)
+    setShowQr(true)
+  }
+
+  const [gateBusy, setGateBusy] = useState(false)
+
+  const joinWithGateCode = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setGateError(null)
+    setGateBusy(true)
+    try {
+      const result: JoinResult = await useQueueStore
+        .getState()
+        .joinByCode(gateCode, user?.name ?? 'You', user?.avatar)
+      if (result === 'joined') {
+        notify(joinResultMessage(result), 'success')
+        return
+      }
+      if (result === 'already-in-queue') {
+        notify('You are already in another queue.', 'info')
+        return
+      }
+      setGateError(useQueueStore.getState().lastJoinError ?? joinResultMessage(result))
+    } finally {
+      setGateBusy(false)
+    }
   }
 
   return (
@@ -98,43 +143,41 @@ export function QueueDetailPage() {
               {queue.isOpen ? 'Open' : 'Closed'}
             </Badge>
             {isAdmin ? (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={queue.isOpen ? <IconPause className="h-4 w-4" /> : <IconPlay className="h-4 w-4" />}
-                onClick={() => {
-                  toggleQueue(queue.id)
-                  notify(queue.isOpen ? 'Queue closed' : 'Queue opened', 'info')
-                }}
-              >
-                {queue.isOpen ? 'Close queue' : 'Open queue'}
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={queue.isOpen ? <IconPause className="h-4 w-4" /> : <IconPlay className="h-4 w-4" />}
+                  onClick={() => {
+                    toggleQueue(queue.id)
+                    notify(queue.isOpen ? 'Queue closed' : 'Queue opened', 'info')
+                  }}
+                >
+                  {queue.isOpen ? 'Close queue' : 'Open queue'}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => void openQr()}>
+                  Show entry QR
+                </Button>
+              </>
             ) : isMine ? (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  leaveQueue()
-                  notify('You left the queue.', 'info')
+                onClick={async () => {
+                  await leaveQueue()
+                  if (!useQueueStore.getState().activeTicket) notify('You left the queue.', 'info')
                 }}
               >
                 Leave queue
               </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={handleJoin}
-                disabled={!queue.isOpen || Boolean(activeTicket)}
-                rightIcon={<IconArrowRight className="h-4 w-4" />}
-              >
-                Join queue
-              </Button>
-            )}
+            ) : null}
           </>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {canViewLine ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatBox label="In line" value={waiting.length} icon={<IconUsers className="h-4 w-4" />} />
         <StatBox label="Capacity" value={queue.capacity} icon={<IconQueue className="h-4 w-4" />} />
         <StatBox label="Avg service" value={`${queue.avgServiceMinutes} min`} icon={<IconClock className="h-4 w-4" />} />
@@ -215,7 +258,7 @@ export function QueueDetailPage() {
                     >
                       {index + 1}
                     </span>
-                    <Avatar name={entry.name} size="sm" />
+                    <Avatar name={entry.name} src={entry.avatar} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13.5px] font-medium text-slate-900 dark:text-white">
                         {entry.name}
@@ -296,6 +339,9 @@ export function QueueDetailPage() {
                 >
                   Call next person
                 </Button>
+                <Button className="w-full" variant="outline" onClick={() => void openQr()}>
+                  Show entry QR
+                </Button>
                 <Button
                   className="w-full"
                   variant={queue.isOpen ? 'danger' : 'success'}
@@ -337,7 +383,7 @@ export function QueueDetailPage() {
               <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
                 {history.slice(-5).reverse().map((entry) => (
                   <li key={entry.id} className="flex items-center gap-2.5 px-5 py-2.5">
-                    <Avatar name={entry.name} size="xs" />
+                    <Avatar name={entry.name} src={entry.avatar} size="xs" />
                     <span className="flex-1 truncate text-[12.5px] text-slate-600 dark:text-slate-400">
                       {entry.name}
                     </span>
@@ -350,7 +396,64 @@ export function QueueDetailPage() {
             </Card>
           ) : null}
         </aside>
-      </div>
+          </div>
+        </>
+      ) : (
+        <Card className="p-6">
+          <div className="mx-auto max-w-md text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15 dark:bg-brand-500/10 dark:text-brand-300 dark:ring-brand-400/25">
+              <IconQueue className="h-6 w-6" />
+            </span>
+            <h2 className="mt-4 font-display text-xl font-semibold text-slate-900 dark:text-white">
+              This queue is private until you join
+            </h2>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-slate-500 dark:text-slate-400">
+              Enter the code given by the queue admin (or scan their QR poster) to see who is in
+              line and take your position.
+            </p>
+            <form onSubmit={joinWithGateCode} className="mx-auto mt-5 flex max-w-sm flex-col gap-2.5 sm:flex-row">
+              <div className="flex-1 text-left">
+                <Input
+                  name="code"
+                  placeholder="e.g. LAB-2048"
+                  value={gateCode}
+                  onChange={(event) => setGateCode(event.target.value)}
+                  aria-label="Queue code"
+                  required
+                />
+              </div>
+              <Button type="submit" loading={gateBusy}>Join queue</Button>
+            </form>
+            {gateError ? (
+              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+                {gateError}
+              </p>
+            ) : null}
+          </div>
+        </Card>
+      )}
+
+      <Modal
+        open={showQr}
+        onClose={() => setShowQr(false)}
+        title="Entry QR code"
+        description="Members scan this to join the queue — or they can enter the code."
+      >
+        <div className="flex flex-col items-center gap-4">
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="Queue entry QR code" className="rounded-2xl border border-slate-200 dark:border-slate-700" />
+          ) : null}
+          <div className="text-center">
+            <p className="font-mono text-lg font-bold tracking-widest text-slate-900 dark:text-white">
+              {queue.joinCode}
+            </p>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Queue code</p>
+          </div>
+          <Button variant="outline" onClick={() => navigator.clipboard.writeText(queue.joinCode).then(() => notify('Code copied', 'success'))}>
+            Copy code
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }

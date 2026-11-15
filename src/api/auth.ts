@@ -22,7 +22,7 @@ export interface RegisterRequest {
   email: string
   phoneNumber: string
   whatsappNumber: string
-  gender: 'MALE' | 'FEMALE' | 'OTHER'
+  gender: 'MALE' | 'FEMALE'
   cohortId: string
 }
 
@@ -81,6 +81,11 @@ export interface ResendVerificationRequest {
   email: string
 }
 
+export interface UpdatePasswordRequest {
+  oldPassword: string
+  newPassword: string
+}
+
 export const authApi = {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     return api.post<LoginResponse>(API_ENDPOINTS.auth.login, credentials, false)
@@ -130,5 +135,9 @@ export const authApi = {
 
   async logout(): Promise<LogoutResponse> {
     return api.post<LogoutResponse>(API_ENDPOINTS.auth.logout)
+  },
+
+  async updatePassword(data: UpdatePasswordRequest): Promise<ApiResponse<string>> {
+    return api.patch<ApiResponse<string>>(API_ENDPOINTS.auth.updatePassword, data)
   },
 }

@@ -9,6 +9,8 @@ export interface User {
   role: Role
   emailVerified: boolean
   createdAt: string
+  /** Caricature avatar generated at signup (data URL). */
+  avatar?: string
 }
 
 export interface QueueEntry {
@@ -16,6 +18,8 @@ export interface QueueEntry {
   name: string
   joinedAt: string
   status: QueueEntryStatus
+  /** Caricature avatar of the person in line (data URL). */
+  avatar?: string
 }
 
 export interface Queue {
@@ -26,6 +30,8 @@ export interface Queue {
   capacity: number
   isOpen: boolean
   avgServiceMinutes: number
+  /** Short code members enter (or scan as a QR) to join. */
+  joinCode: string
   entries: QueueEntry[]
   createdAt: string
 }

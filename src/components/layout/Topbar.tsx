@@ -107,7 +107,7 @@ export function Topbar() {
               aria-expanded={menuOpen}
               aria-label="Open account menu"
             >
-              <Avatar name={user?.name ?? 'Guest'} size="sm" />
+              <Avatar name={user?.name ?? 'Guest'} src={user?.avatar} size="sm" />
               <span className="hidden text-left sm:block">
                 <span className="block max-w-[120px] truncate text-[12px] font-semibold text-slate-900 dark:text-white">
                   {user?.name ?? 'Guest'}
