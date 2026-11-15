@@ -5,11 +5,17 @@ import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
 
-function mapLoginResponseToUser(response: LoginResponse): User {
+function mapLoginResponseToUser(response: LoginResponse, userIdentifier: string): User {
+  // Backend returns userId and role in login response; email is in JWT
+  // If userIdentifier looks like an email, use it; otherwise leave empty
+  const email = userIdentifier.includes('@') ? userIdentifier : ''
+  // Derive name from email prefix or leave empty
+  const name = email ? email.split('@')[0].replace(/[._-]/g, ' ') : ''
+
   return {
     id: response.userId,
-    name: '',
-    email: '',
+    name,
+    email,
     role: response.role as Role,
     emailVerified: true,
     createdAt: new Date().toISOString(),
@@ -63,7 +69,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         response = await authApi.login({ userIdentifier, pin })
       }
 
-      const user = mapLoginResponseToUser(response)
+      const user = mapLoginResponseToUser(response, userIdentifier)
       saveJSON(USER_KEY, user)
       set({ user, loading: false, error: null })
 
@@ -120,7 +126,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const response = await authApi.verifyEmailAndLogin({ email, otp })
-      const user = mapLoginResponseToUser(response)
+      const user = mapLoginResponseToUser(response, email)
       saveJSON(USER_KEY, user)
       set({ user, loading: false, error: null })
       await get().fetchUserProfile()
