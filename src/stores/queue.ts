@@ -3,9 +3,10 @@ import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
 import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
-import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, type BackendQueueUser } from '../lib/api'
+import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, fetchCohorts, type BackendQueueUser } from '../lib/api'
 
 const KEY = 'qin:data:v2'
+const STORAGE_VERSION = 2
 
 interface PersistedData {
   cohorts: Cohort[]
@@ -17,6 +18,16 @@ const emptySeed: PersistedData = {
   cohorts: [],
   queues: [],
   activeTicket: null,
+}
+
+function migrateStorage(): PersistedData {
+  const stored = loadJSON<PersistedData>(KEY, emptySeed)
+  const version = parseInt(localStorage.getItem('qin:version') ?? '0', 10)
+  if (version < STORAGE_VERSION) {
+    localStorage.setItem('qin:version', String(STORAGE_VERSION))
+    return emptySeed
+  }
+  return stored
 }
 
 export type JoinResult =
@@ -106,7 +117,7 @@ function persist(state: PersistedData) {
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
-  ...loadJSON<PersistedData>(KEY, emptySeed),
+  ...migrateStorage(),
   lastJoinError: null,
 
   joinQueue: (queueId, name, avatar) => {
@@ -149,15 +160,24 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     try {
       const { queues: backendQueues } = await fetchAllQueues()
       const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
-      if (!mapped.length) return
+      
+      // Also fetch cohorts from backend
+      const backendCohorts = await fetchCohorts()
+      const mappedCohorts: Cohort[] = backendCohorts.map(c => ({
+        id: c.id,
+        name: c.name,
+        description: '',
+        memberCount: 0,
+        createdAt: new Date().toISOString(),
+      }))
 
       const current = get().queues
       const merged = [...mapped]
       for (const local of current) {
         if (!merged.some((item) => item.id === local.id)) merged.push(local)
       }
-      set({ queues: merged })
-      persist({ cohorts: get().cohorts, queues: merged, activeTicket: get().activeTicket })
+      set({ queues: merged, cohorts: mappedCohorts })
+      persist({ cohorts: mappedCohorts, queues: merged, activeTicket: get().activeTicket })
     } catch {
       // Backend unreachable — keep whatever local state exists.
     }
