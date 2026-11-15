@@ -5,10 +5,8 @@ import { FaceCapture } from '../../components/FaceCapture'
 import { IconArrowLeft, IconArrowRight, IconEye, IconEyeOff, IconLock, IconMail, IconSparkles, IconUser } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
-import { fetchCohorts, type BackendCohort, type Gender } from '../../lib/api'
+import { fetchCohorts, type BackendCohort, type Gender, uploadCaricature } from '../../lib/api'
 import { AuthLayout } from './AuthLayout'
-
-type RegisterStep = 'details' | 'photo' | 'complete'
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -32,18 +30,6 @@ export function RegisterPage() {
   const [agreed, setAgreed] = useState(true)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
-  const [cohorts, setCohorts] = useState<Array<{ id: string; name: string }>>([])
-  const [cohortsLoading, setCohortsLoading] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
-
-  useEffect(() => {
-    cohortsApi.getAllCohorts()
-      .then(data => {
-        setCohorts(data.filter(c => c.isActive))
-      })
-      .catch(() => {})
-      .finally(() => setCohortsLoading(false))
-  }, [])
 
   // Cohorts come from the backend (public endpoint) and are required to sign up.
   useEffect(() => {
@@ -115,19 +101,26 @@ export function RegisterPage() {
     const useAvatar = confirmedAvatar ?? avatar
     clearError()
     setLocalError(null)
-    await register(
-      {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, ''),
-        pin,
-        email: email.trim().toLowerCase(),
-        gender: (gender || 'MALE') as Gender,
-        cohortId,
-      },
-      useAvatar,
-    )
-    if (!useAuthStore.getState().user) return
+    await register({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, ''),
+      pin,
+      email: email.trim().toLowerCase(),
+      phoneNumber: '',
+      whatsappNumber: '',
+      gender: (gender || 'MALE') as Gender,
+      cohortId,
+    })
+    const user = useAuthStore.getState().user
+    if (!user) return
+    if (useAvatar) {
+      try {
+        await uploadCaricature(user.id, useAvatar)
+      } catch {
+        // Ignore caricature upload errors
+      }
+    }
     notify('Account created — check your inbox for the verification code')
     navigate('/verify-email')
   }
