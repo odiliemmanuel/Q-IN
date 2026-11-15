@@ -16,35 +16,6 @@ function mapLoginResponseToUser(response: LoginResponse): User {
   }
 }
 
-/** Map a backend role string ("NATIVE", "ROLE_ADMIN", …) to the frontend Role. */
-function roleFromBackend(role: string | undefined): Role {
-  const value = (role ?? '').toUpperCase().replace(/^ROLE_/, '')
-  if (value === 'ADMIN') return 'ADMIN'
-  if (value === 'SUPER_ADMIN') return 'SUPER_ADMIN'
-  return 'NATIVE'
-}
-
-/** The data collected on the signup form, kept between registration and verification. */
-export interface PendingRegistration {
-  email: string
-  firstName: string
-  lastName: string
-  userName: string
-  /** 4-digit PIN as entered on the form (kept only for the local demo fallback). */
-  pin: string
-  gender: Gender
-  cohortId: string
-  avatar: string | null
-}
-
-export function loadPendingRegistration(): PendingRegistration | null {
-  try {
-    return JSON.parse(localStorage.getItem(PENDING_KEY) ?? 'null') as PendingRegistration | null
-  } catch {
-    return null
-  }
-}
-
 interface AuthState {
   user: User | null
   loading: boolean
@@ -241,10 +212,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('qin:accessToken')
     localStorage.removeItem('qin:refreshToken')
     localStorage.removeItem(USER_KEY)
-    localStorage.removeItem(PENDING_KEY)
-    saveTokens(null)
     set({ user: null, error: null })
-    void hadTokens
   },
 
   fetchUserProfile: async () => {

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui'
-import { IconMail } from '../../components/icons'
+import { IconMail, IconShield } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { AuthLayout } from './AuthLayout'
@@ -68,7 +68,7 @@ export function VerifyEmailPage() {
     }
     setLocalError(null)
     try {
-      await verifyEmail(code)
+      await verifyEmail(user?.email ?? '', code)
       const state = useAuthStore.getState()
       if (state.error) {
         setLocalError(state.error)
@@ -84,7 +84,7 @@ export function VerifyEmailPage() {
   const handleResend = async () => {
     setResending(true)
     try {
-      await resendVerification()
+      await resendVerification(user?.email ?? '')
       notify('A new code is on its way', 'info')
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Could not resend the code', 'error')
