@@ -3,7 +3,7 @@ import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
 import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
-import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, fetchCohorts, type BackendQueueUser, getCachedCaricatureUrl, setCachedCaricatureUrl } from '../lib/api'
+import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, fetchCohorts, type BackendQueueUser, getCachedProfilePictureUrl, setCachedProfilePictureUrl } from '../lib/api'
 import { cohortsApi } from '../api'
 
 const KEY = 'qin:data:v2'
@@ -59,11 +59,11 @@ export function joinResultMessage(result: JoinResult): string {
 /** Precise backend failure message for the most recent join attempt (API mode). */
 function mapBackendUserToEntry(user: BackendQueueUser): QueueEntry {
   // Use backend URL first, fall back to cached URL
-  const avatar = user.caricatureUrl ?? getCachedCaricatureUrl(user.id) ?? undefined
+  const avatar = user.profilePictureUrl ?? getCachedProfilePictureUrl(user.id) ?? undefined
   
   // Cache the backend URL if we got one
-  if (user.caricatureUrl) {
-    setCachedCaricatureUrl(user.id, user.caricatureUrl)
+  if (user.profilePictureUrl) {
+    setCachedProfilePictureUrl(user.id, user.profilePictureUrl)
   }
   
   return {

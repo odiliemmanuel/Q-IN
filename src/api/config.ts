@@ -20,6 +20,7 @@ export const API_ENDPOINTS = {
   },
   users: {
     caricature: (userId: string) => `/api/v1/users/${userId}/caricature`,
+    profilePicture: (userId: string) => `/api/v1/users/${userId}/profile-picture`,
   },
   queues: {
     create: '/api/queue/create',

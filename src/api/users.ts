@@ -2,10 +2,10 @@ import { api } from './client'
 import { API_ENDPOINTS } from './config'
 
 export const usersApi = {
-  async uploadCaricature(userId: string, file: File): Promise<void> {
+  async uploadProfilePicture(userId: string, file: File): Promise<void> {
     const formData = new FormData()
     formData.append('file', file)
-    return api.upload<void>(API_ENDPOINTS.users.caricature(userId), formData)
+    return api.upload<void>(API_ENDPOINTS.users.profilePicture(userId), formData)
   },
 
   async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
