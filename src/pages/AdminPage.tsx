@@ -19,6 +19,7 @@ import {
   IconArrowRight,
   IconCheckCircle,
   IconClock,
+  IconEdit,
   IconPause,
   IconPlay,
   IconPlus,
@@ -48,6 +49,8 @@ export function AdminPage() {
   const queues = useQueueStore((state) => state.queues)
   const cohorts = useQueueStore((state) => state.cohorts)
   const toggleQueue = useQueueStore((state) => state.toggleQueue)
+  const updateQueueCapacity = useQueueStore((state) => state.updateQueueCapacity)
+  const deleteQueue = useQueueStore((state) => state.deleteQueue)
   const notify = useUiStore((state) => state.notify)
   const currentUser = useAuthStore((state) => state.user)
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN'
@@ -60,6 +63,11 @@ export function AdminPage() {
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [webhookOpen, setWebhookOpen] = useState(false)
   const [webhookForm, setWebhookForm] = useState({ endpoint: '', events: ['queue.opened'] })
+  const [capacityOpen, setCapacityOpen] = useState(false)
+  const [capacityQueue, setCapacityQueue] = useState<{ id: string; name: string; capacity: number } | null>(null)
+  const [capacityValue, setCapacityValue] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteQueueId, setDeleteQueueId] = useState<string | null>(null)
 
   useEffect(() => {
     webhooksApi.getAll()
@@ -132,6 +140,44 @@ export function AdminPage() {
     notify('Webhook added')
     setWebhookOpen(false)
     setWebhookForm({ endpoint: '', events: ['queue.opened'] })
+  }
+
+  const openCapacityModal = (queue: { id: string; name: string; capacity: number }) => {
+    setCapacityQueue(queue)
+    setCapacityValue(String(queue.capacity))
+    setCapacityOpen(true)
+  }
+
+  const submitCapacity = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!capacityQueue) return
+    const newCapacity = Math.max(1, Number(capacityValue) || 1)
+    try {
+      await updateQueueCapacity(capacityQueue.id, newCapacity)
+      notify(`Capacity updated to ${newCapacity}`)
+    } catch (error) {
+      notify('Failed to update capacity', 'error')
+    }
+    setCapacityOpen(false)
+    setCapacityQueue(null)
+    setCapacityValue('')
+  }
+
+  const openDeleteModal = (queueId: string) => {
+    setDeleteQueueId(queueId)
+    setDeleteOpen(true)
+  }
+
+  const submitDelete = async () => {
+    if (!deleteQueueId) return
+    try {
+      await deleteQueue(deleteQueueId)
+      notify('Queue deleted')
+    } catch (error) {
+      notify('Failed to delete queue', 'error')
+    }
+    setDeleteOpen(false)
+    setDeleteQueueId(null)
   }
 
   return (
@@ -236,17 +282,34 @@ export function AdminPage() {
                           </Badge>
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            leftIcon={queue.isOpen ? <IconPause className="h-3.5 w-3.5" /> : <IconPlay className="h-3.5 w-3.5" />}
-                            onClick={() => {
-                              toggleQueue(queue.id)
-                              notify(queue.isOpen ? `${queue.name} closed` : `${queue.name} opened`, 'info')
-                            }}
-                          >
-                            {queue.isOpen ? 'Close' : 'Open'}
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              leftIcon={<IconEdit className="h-3.5 w-3.5" />}
+                              onClick={() => openCapacityModal({ id: queue.id, name: queue.name, capacity: queue.capacity })}
+                              aria-label={`Edit capacity for ${queue.name}`}
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              leftIcon={queue.isOpen ? <IconPause className="h-3.5 w-3.5" /> : <IconPlay className="h-3.5 w-3.5" />}
+                              onClick={() => {
+                                toggleQueue(queue.id)
+                                notify(queue.isOpen ? `${queue.name} closed` : `${queue.name} opened`, 'info')
+                              }}
+                            >
+                              {queue.isOpen ? 'Close' : 'Open'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                              leftIcon={<IconTrash className="h-3.5 w-3.5" />}
+                              onClick={() => openDeleteModal(queue.id)}
+                              aria-label={`Delete ${queue.name}`}
+                            />
+                          </div>
                         </td>
                       </tr>
                     )
@@ -581,6 +644,58 @@ export function AdminPage() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={capacityOpen}
+        onClose={() => { setCapacityOpen(false); setCapacityQueue(null); setCapacityValue(''); }}
+        title="Update queue capacity"
+        description="Set the maximum number of people allowed in this queue."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setCapacityOpen(false); setCapacityQueue(null); setCapacityValue(''); }}>
+              Cancel
+            </Button>
+            <Button onClick={submitCapacity}>Save capacity</Button>
+          </>
+        }
+      >
+        <form onSubmit={submitCapacity} className="space-y-4">
+          <Input
+            label="Capacity"
+            name="queue-capacity"
+            type="number"
+            min="1"
+            placeholder="20"
+            value={capacityValue}
+            onChange={(event) => setCapacityValue(event.target.value)}
+            required
+          />
+          {capacityQueue && (
+            <p className="text-[13px] text-slate-500 dark:text-slate-400">
+              Current capacity: <span className="font-medium">{capacityQueue.capacity}</span>
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      <Modal
+        open={deleteOpen}
+        onClose={() => { setDeleteOpen(false); setDeleteQueueId(null); }}
+        title="Delete queue"
+        description="This action cannot be undone. All queue data will be permanently removed."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setDeleteOpen(false); setDeleteQueueId(null); }}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={submitDelete}>Delete queue</Button>
+          </>
+        }
+      >
+        <p className="text-slate-600 dark:text-slate-400">
+          Are you sure you want to delete this queue? This will remove all entries and cannot be undone.
+        </p>
       </Modal>
     </div>
   )

@@ -5,7 +5,7 @@ import { FaceCapture } from '../../components/FaceCapture'
 import { IconArrowLeft, IconArrowRight, IconEye, IconEyeOff, IconLock, IconMail, IconSparkles, IconUser } from '../../components/icons'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
-import { fetchCohorts, type BackendCohort, type Gender, uploadCaricature } from '../../lib/api'
+import { fetchCohorts, type BackendCohort, type Gender, uploadCaricature, setCachedCaricatureUrl } from '../../lib/api'
 import { AuthLayout } from './AuthLayout'
 
 export function RegisterPage() {
@@ -116,9 +116,10 @@ export function RegisterPage() {
     if (!user) return
     if (useAvatar) {
       try {
-        await uploadCaricature(user.id, useAvatar)
+        const url = await uploadCaricature(user.id, useAvatar)
+        if (url) setCachedCaricatureUrl(user.id, url)
       } catch {
-        // Ignore caricature upload errors
+        // Ignore avatar upload errors
       }
     }
     notify('Account created — check your inbox for the verification code')
@@ -131,7 +132,7 @@ export function RegisterPage() {
       subtitle={
         step === 1
           ? 'Join your cohort and stop guessing when your turn is.'
-          : 'We turn your photo into a caricature so others can spot you on the queue.'
+          : 'We turn your photo into an avatar so others can spot you on the queue.'
       }
       footer={
         <span className="text-slate-500 dark:text-slate-400">
@@ -313,7 +314,7 @@ export function RegisterPage() {
             </Button>
             <p className="flex flex-1 items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400">
               <IconSparkles className="h-3.5 w-3.5 text-brand-600" />
-              Everything stays on your device — only the caricature is uploaded.
+              Everything stays on your device — only the avatar is uploaded.
             </p>
           </div>
         </div>

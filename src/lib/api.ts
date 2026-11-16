@@ -220,8 +220,8 @@ export async function logoutUser(): Promise<void> {
   saveTokens(null)
 }
 
-/** Upload the generated caricature (multipart). */
-export async function uploadCaricature(userId: string, dataUrl: string): Promise<void> {
+/** Upload the generated caricature (multipart). Returns the caricature URL from backend. */
+export async function uploadCaricature(userId: string, dataUrl: string): Promise<string> {
   const tokens = loadTokens()
   const blob = await (await fetch(dataUrl)).blob()
   const form = new FormData()
@@ -240,8 +240,123 @@ export async function uploadCaricature(userId: string, dataUrl: string): Promise
       const text = await response.text().catch(() => '')
       throw new ApiError(text || `Caricature upload failed (${response.status})`, response.status)
     }
+    const data = await response.json()
+    return data.data?.url ?? data.data?.caricatureUrl ?? ''
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/** Fetch user's caricature URL from backend. */
+export async function fetchCaricatureUrl(userId: string): Promise<string | null> {
+  const tokens = loadTokens()
+  if (!tokens) return null
+  
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/users/${userId}/caricature`, {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    return data.data?.url ?? data.data?.caricatureUrl ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Cache keys for caricature URLs. */
+const CARICATURE_CACHE_KEY = 'qin:caricature:'
+const CARICATURE_ETAG_KEY = 'qin:caricature:etag:'
+
+/** Get cached caricature URL for a user. */
+export function getCachedCaricatureUrl(userId: string): string | null {
+  try {
+    return sessionStorage.getItem(`${CARICATURE_CACHE_KEY}${userId}`)
+  } catch {
+    return null
+  }
+}
+
+/** Set cached caricature URL for a user. */
+export function setCachedCaricatureUrl(userId: string, url: string): void {
+  try {
+    sessionStorage.setItem(`${CARICATURE_CACHE_KEY}${userId}`, url)
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/** Get cached ETag for conditional requests. */
+export function getCachedCaricatureETag(userId: string): string | null {
+  try {
+    return sessionStorage.getItem(`${CARICATURE_ETAG_KEY}${userId}`)
+  } catch {
+    return null
+  }
+}
+
+/** Set cached ETag. */
+export function setCachedCaricatureETag(userId: string, etag: string): void {
+  try {
+    sessionStorage.setItem(`${CARICATURE_ETAG_KEY}${userId}`, etag)
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/** Poll for caricature updates (with ETag for efficiency). */
+export async function pollCaricatureUpdates(
+  userId: string,
+  onUpdate: (url: string) => void,
+  intervalMs = 30_000
+): Promise<() => void> {
+  let stopped = false
+  
+  const poll = async () => {
+    if (stopped) return
+    
+    const etag = getCachedCaricatureETag(userId)
+    const headers: Record<string, string> = {}
+    if (etag) headers['If-None-Match'] = etag
+    
+    const tokens = loadTokens()
+    if (tokens) headers.Authorization = `Bearer ${tokens.accessToken}`
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/users/${userId}/caricature`, { headers })
+      
+      if (response.status === 304) {
+        // Not modified - no update
+        return
+      }
+      
+      if (!response.ok) return
+      
+      const newEtag = response.headers.get('ETag')
+      if (newEtag) setCachedCaricatureETag(userId, newEtag)
+      
+      const data = await response.json()
+      const url = data.data?.url ?? data.data?.caricatureUrl ?? null
+      
+      if (url) {
+        setCachedCaricatureUrl(userId, url)
+        onUpdate(url)
+      }
+    } catch {
+      // Ignore polling errors
+    }
+  }
+  
+  // Initial fetch
+  await poll()
+  
+  // Set up interval
+  const intervalId = setInterval(poll, intervalMs)
+  
+  // Return cleanup function
+  return () => {
+    stopped = true
+    clearInterval(intervalId)
   }
 }
 

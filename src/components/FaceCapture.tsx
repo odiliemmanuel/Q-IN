@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { generateCaricature } from '../lib/caricature'
+import { generateAvatar } from '../lib/caricature'
 import { Button } from './ui'
 import { IconCamera, IconSparkles, IconUser } from './icons'
 
 type Stage = 'camera' | 'review'
 
 /**
- * Capture (camera) or upload (file) a photo, then turn it into a caricature.
+ * Capture (camera) or upload (file) a photo, then turn it into an avatar.
  * The result is passed to `onConfirm` as a PNG data URL.
  */
 export function FaceCapture({
@@ -106,10 +106,10 @@ export function FaceCapture({
     setWorking(true)
     try {
       const blob = await (await fetch(source)).blob()
-      const caricature = await generateCaricature(blob)
-      setResult(caricature)
+      const avatar = await generateAvatar(blob)
+      setResult(avatar)
     } catch {
-      setCameraError('Something went wrong while creating your caricature. Try another photo.')
+      setCameraError('Something went wrong while creating your avatar. Try another photo.')
     } finally {
       setWorking(false)
     }
@@ -180,7 +180,7 @@ export function FaceCapture({
             </Button>
           </div>
           <p className="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
-            Your caricature lets others recognise you on the queue.
+            Your avatar lets others recognise you on the queue.
           </p>
         </div>
       ) : (
@@ -189,7 +189,7 @@ export function FaceCapture({
             {working ? (
               <div className="flex flex-col items-center gap-2 text-xs text-slate-500">
                 <IconSparkles className="h-6 w-6 animate-pulse text-brand-600" />
-                Drawing your caricature…
+                Creating your avatar…
               </div>
             ) : result ? (
               <img src={result} alt="Your caricature" className="h-full w-full object-cover" />
@@ -215,7 +215,7 @@ export function FaceCapture({
                   disabled={working || !source}
                   leftIcon={<IconSparkles className="h-4 w-4" />}
                 >
-                  Generate caricature
+                  Generate avatar
                 </Button>
                 <Button variant="outline" onClick={retake} disabled={working}>
                   Back
