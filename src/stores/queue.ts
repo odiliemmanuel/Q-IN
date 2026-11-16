@@ -434,9 +434,12 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     // Use first available cohort or generate a default cohort ID
     const cohortId = input.cohortId ?? cohorts[0]?.id ?? `cohort_${uid()}`
 
+    // Use the name as the queue ID to match backend (queueId = name)
+    const queueId = input.name
+
     const nextQueues: Queue[] = [
       {
-        id: uid('queue'),
+        id: queueId,
         name: input.name,
         cohortId,
         description: input.description,

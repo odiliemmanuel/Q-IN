@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { QueueCard } from '../components/QueueCard'
-import { Button, Card, EmptyState, Input, Modal, Select, Textarea } from '../components/ui'
+import { Button, Card, EmptyState, Input, Modal, Textarea } from '../components/ui'
 import { IconPlus, IconQueue, IconSearch } from '../components/icons'
 import { useAuthStore } from '../stores/auth'
 import { useQueueStore } from '../stores/queue'
@@ -28,7 +28,6 @@ export function QueuesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({
     name: '',
-    cohortId: cohorts[0]?.id ?? '',
     description: '',
     capacity: '20',
     avgServiceMinutes: '10',
@@ -66,20 +65,15 @@ export function QueuesPage() {
       setFormError('Give the queue a name of at least 3 characters.')
       return
     }
-    if (!form.cohortId) {
-      setFormError('Choose a cohort for this queue.')
-      return
-    }
     await addQueue({
       name: form.name.trim(),
-      cohortId: form.cohortId,
       description: form.description.trim() || 'No description yet.',
       capacity: Math.max(1, Number(form.capacity) || 10),
       avgServiceMinutes: Math.max(1, Number(form.avgServiceMinutes) || 10),
     })
     notify('Queue created')
     setModalOpen(false)
-    setForm({ name: '', cohortId: cohorts[0]?.id ?? '', description: '', capacity: '20', avgServiceMinutes: '10' })
+    setForm({ name: '', description: '', capacity: '20', avgServiceMinutes: '10' })
     setFormError(null)
   }
 
@@ -191,7 +185,7 @@ export function QueuesPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Create a queue"
-        description="Queues live inside a cohort and can be opened or closed at any time."
+        description="Queues can be opened or closed at any time."
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
@@ -209,18 +203,6 @@ export function QueuesPage() {
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
           />
-          <Select
-            label="Cohort"
-            name="queue-cohort"
-            value={form.cohortId}
-            onChange={(event) => setForm({ ...form, cohortId: event.target.value })}
-          >
-            {cohorts.map((cohort) => (
-              <option key={cohort.id} value={cohort.id}>
-                {cohort.name}
-              </option>
-            ))}
-          </Select>
           <Textarea
             label="Description"
             name="queue-description"
