@@ -9,7 +9,7 @@ export interface User {
   role: Role
   emailVerified: boolean
   createdAt: string
-  /** Caricature avatar generated at signup (data URL). */
+  /** Avatar generated at signup (data URL). */
   avatar?: string
 }
 
@@ -18,14 +18,14 @@ export interface QueueEntry {
   name: string
   joinedAt: string
   status: QueueEntryStatus
-  /** Caricature avatar of the person in line (data URL). */
+  /** Avatar of the person in line (data URL). */
   avatar?: string
 }
 
 export interface Queue {
   id: string
   name: string
-  cohortId: string
+  cohortId?: string
   description: string
   capacity: number
   isOpen: boolean

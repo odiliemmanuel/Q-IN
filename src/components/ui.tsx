@@ -319,7 +319,7 @@ export function Avatar({
   className,
 }: {
   name: string
-  /** Optional image (e.g. the user's caricature) shown instead of initials. */
+  /** Optional image (e.g. the user's avatar) shown instead of initials. */
   src?: string
   size?: 'xs' | 'sm' | 'md' | 'lg'
   className?: string

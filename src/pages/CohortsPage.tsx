@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { Avatar, Badge, Button, Card, Input, Modal, Progress, Textarea } from '../components/ui'
-import { IconArrowRight, IconPlus, IconQueue, IconUsers } from '../components/icons'
+import { IconArrowRight, IconPlus, IconQueue, IconUsers, IconActivity } from '../components/icons'
 import { useAuthStore } from '../stores/auth'
 import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
@@ -11,6 +11,7 @@ export function CohortsPage() {
   const cohorts = useQueueStore((state) => state.cohorts)
   const queues = useQueueStore((state) => state.queues)
   const addCohort = useQueueStore((state) => state.addCohort)
+  const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
 
@@ -18,21 +19,48 @@ export function CohortsPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const canManage = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
-  const submit = (event: React.FormEvent) => {
+  // Fetch cohorts from backend when admin visits
+  useEffect(() => {
+    if (canManage) {
+      hydrateFromBackend().finally(() => setLoading(false))
+    } else {
+      setLoading(false)
+    }
+  }, [canManage, hydrateFromBackend])
+
+  // Calculate member counts from queues
+  const cohortsWithCounts = cohorts.map((cohort) => {
+    const cohortQueues = queues.filter((queue) => queue.cohortId === cohort.id)
+    const memberCount = new Set(
+      cohortQueues.flatMap((queue) => queue.entries.map((entry) => entry.id))
+    ).size
+    return { ...cohort, memberCount }
+  })
+
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (name.trim().length < 3) {
       setError('Cohort name must be at least 3 characters.')
       return
     }
-    addCohort(name.trim(), description.trim() || 'No description yet.')
+    await addCohort(name.trim(), description.trim() || 'No description yet.')
     notify('Cohort created')
     setOpen(false)
     setName('')
     setDescription('')
     setError(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <IconActivity className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    )
   }
 
   return (
@@ -50,7 +78,7 @@ export function CohortsPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {cohorts.map((cohort) => {
+        {cohortsWithCounts.map((cohort) => {
           const cohortQueues = queues.filter((queue) => queue.cohortId === cohort.id)
           const openQueues = cohortQueues.filter((queue) => queue.isOpen)
           const waiting = cohortQueues.reduce(
@@ -133,8 +161,8 @@ export function CohortsPage() {
           </span>
           <div>
             <p className="text-[13.5px] font-semibold text-slate-900 dark:text-white">
-              {cohorts.reduce((sum, cohort) => sum + cohort.memberCount, 0)} people across{' '}
-              {cohorts.length} cohorts
+              {cohortsWithCounts.reduce((sum, cohort) => sum + cohort.memberCount, 0)} people across{' '}
+              {cohortsWithCounts.length} cohorts
             </p>
             <p className="text-[12px] text-slate-500 dark:text-slate-400">
               Cohorts group people so queues stay relevant and manageable.

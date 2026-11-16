@@ -3,7 +3,8 @@ import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
 import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
-import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, fetchCohorts, type BackendQueueUser } from '../lib/api'
+import { ApiError, loadTokens, enterQueue, exitQueue, fetchAllQueues, createQueueOnBackend, fetchCohorts, type BackendQueueUser, getCachedCaricatureUrl, setCachedCaricatureUrl } from '../lib/api'
+import { cohortsApi } from '../api'
 
 const KEY = 'qin:data:v2'
 const STORAGE_VERSION = 2
@@ -57,12 +58,20 @@ export function joinResultMessage(result: JoinResult): string {
 
 /** Precise backend failure message for the most recent join attempt (API mode). */
 function mapBackendUserToEntry(user: BackendQueueUser): QueueEntry {
+  // Use backend URL first, fall back to cached URL
+  const avatar = user.caricatureUrl ?? getCachedCaricatureUrl(user.id) ?? undefined
+  
+  // Cache the backend URL if we got one
+  if (user.caricatureUrl) {
+    setCachedCaricatureUrl(user.id, user.caricatureUrl)
+  }
+  
   return {
     id: `bqe_${user.id}`,
     name: `${user.firstName} ${user.lastName}`.trim() || user.username,
     joinedAt: new Date().toISOString(),
     status: 'WAITING',
-    avatar: user.caricatureUrl ?? undefined,
+    avatar,
   }
 }
 
@@ -100,11 +109,13 @@ interface QueueState extends PersistedData {
   addCohort: (name: string, description: string) => void
   addQueue: (input: {
     name: string
-    cohortId: string
+    cohortId?: string
     description: string
     capacity: number
     avgServiceMinutes: number
   }) => Promise<void>
+  updateQueueCapacity: (queueId: string, capacity: number) => Promise<void>
+  deleteQueue: (queueId: string) => Promise<void>
   resetDemoData: () => void
 }
 
@@ -379,18 +390,27 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }
   },
 
-  addCohort: (name, description) => {
+  addCohort: async (name, description) => {
     const { cohorts, queues, activeTicket } = get()
-    const nextCohorts: Cohort[] = [
-      {
-        id: uid('cohort'),
-        name,
-        description,
-        memberCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      ...cohorts,
-    ]
+    const newCohort = {
+      id: uid('cohort'),
+      name,
+      description,
+      memberCount: 0,
+      createdAt: new Date().toISOString(),
+    }
+
+    // Try to create on backend if authenticated
+    if (loadTokens()) {
+      try {
+        const backendCohort = await cohortsApi.createCohort({ name, description })
+        newCohort.id = backendCohort.id
+      } catch {
+        // Backend creation failed, but keep local cohort
+      }
+    }
+
+    const nextCohorts: Cohort[] = [newCohort, ...cohorts]
     persist({ cohorts: nextCohorts, queues, activeTicket })
     set({ cohorts: nextCohorts })
   },
@@ -411,11 +431,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       }
     }
 
+    // Use first available cohort or generate a default cohort ID
+    const cohortId = input.cohortId ?? cohorts[0]?.id ?? `cohort_${uid()}`
+
     const nextQueues: Queue[] = [
       {
         id: uid('queue'),
         name: input.name,
-        cohortId: input.cohortId,
+        cohortId,
         description: input.description,
         capacity: input.capacity,
         isOpen: true,
@@ -428,6 +451,50 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     ]
     persist({ cohorts, queues: nextQueues, activeTicket })
     set({ queues: nextQueues })
+  },
+
+  updateQueueCapacity: async (queueId, capacity) => {
+    const { queues, cohorts, activeTicket } = get()
+    
+    // Update on backend if authenticated
+    if (loadTokens()) {
+      try {
+        const { queuesApi } = await import('../api')
+        await queuesApi.updateCapacity(capacity)
+      } catch (error) {
+        // Backend update failed, but keep local update
+        console.warn('Failed to update queue capacity on backend:', error)
+      }
+    }
+
+    const nextQueues = queues.map((item) =>
+      item.id === queueId ? { ...item, capacity } : item,
+    )
+    persist({ cohorts, queues: nextQueues, activeTicket })
+    set({ queues: nextQueues })
+  },
+
+  deleteQueue: async (queueId) => {
+    const { queues, cohorts, activeTicket } = get()
+    
+    // Delete on backend if authenticated
+    if (loadTokens()) {
+      try {
+        const { queuesApi } = await import('../api')
+        await queuesApi.deleteQueue(queueId)
+      } catch (error) {
+        // Backend delete failed, but keep local delete
+        console.warn('Failed to delete queue on backend:', error)
+      }
+    }
+
+    const nextQueues = queues.filter((item) => item.id !== queueId)
+    
+    // Clear active ticket if it was for this queue
+    const nextTicket = activeTicket?.queueId === queueId ? null : activeTicket
+    
+    persist({ cohorts, queues: nextQueues, activeTicket: nextTicket })
+    set({ queues: nextQueues, activeTicket: nextTicket })
   },
 
   resetDemoData: () => {
