@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { Logo } from '../components/Logo'
 import { Avatar, Badge, Button, Card } from '../components/ui'
 import { useAuthStore } from '../stores/auth'
@@ -54,7 +55,7 @@ const FEATURES = [
 const STEPS = [
   {
     title: 'Create your workspace',
-    text: 'Sign up as a member, or sign in with a demo account to explore every role instantly.',
+    text: 'Sign up as a member to explore every role.',
   },
   {
     title: 'Join a queue',
@@ -184,18 +185,19 @@ export function LandingPage() {
                     </Link>
                   </>
                 )}
+                <DownloadButton />
               </div>
 
               <p className="mt-4 flex items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
                 <IconCheckCircle className="h-4 w-4 text-emerald-500" />
-                Try it instantly with a demo account — no setup required.
+                Join any open queue with one tap.
               </p>
 
               <dl className="mt-10 grid max-w-md grid-cols-3 gap-4 border-t border-slate-200 pt-6 dark:border-slate-800">
                 {[
                   { value: '3 roles', label: 'Member, admin, super admin' },
                   { value: '1 tap', label: 'To join any open queue' },
-                  { value: '0 setup', label: 'Runs entirely in your browser' },
+                  { value: '0 setup', label: 'Ready to use in your browser' },
                 ].map((stat) => (
                   <div key={stat.value}>
                     <dt className="font-display text-lg font-semibold text-slate-900 dark:text-white">
@@ -412,8 +414,7 @@ export function LandingPage() {
                   Ready to stop standing in line?
                 </h2>
                 <p className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed text-brand-100/85">
-                  Create an account or jump straight into the demo workspace and see every role in
-                  action.
+                  Create an account and see every role in action.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                   {user ? (
@@ -472,5 +473,62 @@ export function LandingPage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<{ outcome: 'accepted' | 'dismissed' }>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+function DownloadButton() {
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [showInstall, setShowInstall] = useState(false)
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      event.preventDefault()
+      setInstallPrompt(event as BeforeInstallPromptEvent)
+      setShowInstall(true)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    await installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    setShowInstall(outcome === 'accepted')
+    setInstallPrompt(null)
+  }
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  return (
+    <>
+      {showInstall && !isIOS ? (
+        <button
+          type="button"
+          onClick={handleInstall}
+          className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-900/30 hover:bg-brand-700 transition-all animate-bounce"
+          aria-label="Install Q-In app"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" x2="12" y1="15" y2="3" />
+          </svg>
+          <span className="absolute -top-4 right-1/2 -translate-x-1/2 px-2 py-1 rounded bg-slate-900 text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity group">
+            Install app
+          </span>
+        </button>
+      ) : null}
+      {isIOS && !window.matchMedia('(display-mode: standalone)').matches ? (
+        <p className="mt-4 text-[11px] text-slate-500 dark:text-slate-400 text-center">
+          Tap <span className="font-semibold">Share</span> → <span className="font-semibold">Add to Home Screen</span> to install Q-In.
+        </p>
+      ) : null}
+    </>
   )
 }

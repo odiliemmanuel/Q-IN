@@ -542,7 +542,7 @@ export function AdminPage() {
                               item.id === webhook.id ? { ...item, deliveries: item.deliveries + 1 } : item,
                             ),
                           )
-                          notify('Test event delivered (demo)')
+                          notify('Test event delivered')
                         }}
                       >
                         Send test

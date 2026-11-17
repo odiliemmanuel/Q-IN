@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Role, User } from '../lib/types'
-import { loadJSON, saveJSON } from '../lib/persist'
+import { loadJSON, saveJSON, flushPendingWrites } from '../lib/persist'
 import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
@@ -221,6 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    flushPendingWrites()
     try {
       await authApi.logout()
     } catch {

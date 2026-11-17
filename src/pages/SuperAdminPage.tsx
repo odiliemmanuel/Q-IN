@@ -14,21 +14,16 @@ import {
   IconArrowRight,
   IconCheckCircle,
   IconClock,
-  IconLayers,
   IconQueue,
-  IconShield,
   IconSparkles,
   IconUsers,
 } from '../components/icons'
 import { cn, formatDate, timeAgo } from '../lib/utils'
 import { useQueueStore } from '../stores/queue'
-import { useUiStore } from '../stores/ui'
 
 export function SuperAdminPage() {
   const cohorts = useQueueStore((state) => state.cohorts)
   const queues = useQueueStore((state) => state.queues)
-  const resetDemoData = useQueueStore((state) => state.resetDemoData)
-  const notify = useUiStore((state) => state.notify)
 
   const members = cohorts.reduce((sum, cohort) => sum + cohort.memberCount, 0)
   const waiting = queues.reduce(
@@ -179,7 +174,7 @@ export function SuperAdminPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Plan</span>
-                <Badge tone="brand">Demo</Badge>
+                <Badge tone="brand">Live</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 dark:text-slate-400">Last activity</span>
@@ -198,33 +193,6 @@ export function SuperAdminPage() {
           </Card>
         </div>
       </div>
-
-      <Card className="border-rose-200 dark:border-rose-500/25">
-        <CardHeader
-          title="Danger zone"
-          description="These actions affect the whole demo workspace."
-          action={<IconShield className="h-5 w-5 text-rose-500" />}
-        />
-        <CardBody className="flex flex-col items-start justify-between gap-3 pt-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-[13px] font-medium text-slate-900 dark:text-white">Reset demo data</p>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400">
-              Restores every cohort, queue and entry to the original seed.
-            </p>
-          </div>
-          <Button
-            variant="danger"
-            size="sm"
-            leftIcon={<IconLayers className="h-3.5 w-3.5" />}
-            onClick={() => {
-              resetDemoData()
-              notify('Demo data reset to its original state', 'info')
-            }}
-          >
-            Reset data
-          </Button>
-        </CardBody>
-      </Card>
 
       <div className="flex items-center gap-2 text-[11.5px] text-slate-400 dark:text-slate-500">
         <IconSparkles className="h-4 w-4" />
