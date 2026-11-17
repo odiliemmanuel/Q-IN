@@ -140,6 +140,8 @@ interface QueueState extends PersistedData {
   skipEntry: (queueId: string, entryId: string) => void
   toggleQueue: (queueId: string) => Promise<void>
   addCohort: (name: string, description: string) => void
+  disableCohort: (id: string) => Promise<void>
+  deleteCohort: (id: string) => Promise<void>
   addQueue: (input: {
     name: string
     cohortId?: string
@@ -455,6 +457,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       description,
       memberCount: 0,
       createdAt: new Date().toISOString(),
+      isActive: true,
     }
 
     if (loadTokens()) {
@@ -469,6 +472,45 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const nextCohorts: Cohort[] = [newCohort, ...cohorts]
     persist({ cohorts: nextCohorts, queues, activeTicket })
     set({ cohorts: nextCohorts })
+  },
+
+  disableCohort: async (id: string) => {
+    const { cohorts, queues, activeTicket } = get()
+    const current = cohorts.find((c) => c.id === id)
+    if (!current || !current.isActive) return
+
+    if (loadTokens()) {
+      try {
+        await cohortsApi.disableCohort(id)
+      } catch {
+        // fall through to local update
+      }
+    }
+
+    const nextCohorts = cohorts.map((c) => (c.id === id ? { ...c, isActive: false } : c))
+    persist({ cohorts: nextCohorts, queues, activeTicket })
+    set({ cohorts: nextCohorts })
+    useNotificationStore.getState().push('Cohort disabled', `${current.name} is now inactive.`)
+  },
+
+  deleteCohort: async (id: string) => {
+    const { cohorts, queues, activeTicket } = get()
+    const current = cohorts.find((c) => c.id === id)
+    if (!current) return
+
+    if (loadTokens()) {
+      try {
+        await cohortsApi.deleteCohort(id)
+      } catch (error) {
+        useNotificationStore.getState().push('Could not delete cohort', error instanceof Error ? error.message : 'Backend unreachable.')
+        return
+      }
+    }
+
+    const nextCohorts = cohorts.filter((c) => c.id !== id)
+    persist({ cohorts: nextCohorts, queues, activeTicket })
+    set({ cohorts: nextCohorts })
+    useNotificationStore.getState().push('Cohort deleted', `${current.name} was removed.`)
   },
 
   addQueue: async (input) => {

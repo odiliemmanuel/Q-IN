@@ -34,7 +34,7 @@ import { cn, formatDate, timeAgo } from '../lib/utils'
 import { useAuthStore } from '../stores/auth'
 import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
-import { webhooksApi } from '../api'
+import { webhooksApi, superAdminApi } from '../api'
 
 type TabId = 'queues' | 'admins' | 'webhooks'
 
@@ -325,7 +325,7 @@ export function AdminPage() {
         </div>
       ) : null}
 
-      {tab === 'admins' ? (
+      {tab === 'admins' && isSuperAdmin ? (
         <Card>
           <CardHeader
             title="Admin management"
@@ -383,18 +383,23 @@ export function AdminPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
-                                setAdmins((current) =>
-                                  current.map((item) =>
-                                    item.id === admin.id
-                                      ? { ...item, status: item.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' }
-                                      : item,
-                                  ),
-                                )
-                                notify(
-                                  admin.status === 'ACTIVE' ? `${admin.name} suspended` : `${admin.name} reactivated`,
-                                  'info',
-                                )
+                              onClick={async () => {
+                                try {
+                                  await superAdminApi.suspendAdmin(admin.id)
+                                  setAdmins((current) =>
+                                    current.map((item) =>
+                                      item.id === admin.id
+                                        ? { ...item, status: item.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' }
+                                        : item,
+                                    ),
+                                  )
+                                  notify(
+                                    admin.status === 'ACTIVE' ? `${admin.name} suspended` : `${admin.name} reactivated`,
+                                    'info',
+                                  )
+                                } catch {
+                                  notify('Failed to update admin status', 'error')
+                                }
                               }}
                             >
                               {admin.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
@@ -404,9 +409,14 @@ export function AdminPage() {
                               variant="ghost"
                               className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10"
                               aria-label={`Remove ${admin.name}`}
-                              onClick={() => {
-                                setAdmins((current) => current.filter((item) => item.id !== admin.id))
-                                notify(`${admin.name} removed`, 'info')
+                              onClick={async () => {
+                                try {
+                                  await superAdminApi.deleteAdmin(admin.id)
+                                  setAdmins((current) => current.filter((item) => item.id !== admin.id))
+                                  notify(`${admin.name} removed`, 'info')
+                                } catch {
+                                  notify('Failed to delete admin', 'error')
+                                }
                               }}
                             >
                               <IconTrash className="h-4 w-4" />
@@ -423,7 +433,14 @@ export function AdminPage() {
               </table>
           </div>
         </Card>
-      ) : null}
+      ) : (
+        <Card>
+          <CardHeader title="Admin management" description="Restricted to Super Admins." />
+          <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+            Admin management is restricted to Super Admins.
+          </div>
+        </Card>
+      )}
 
       {tab === 'webhooks' ? (
         <div className="space-y-4">
