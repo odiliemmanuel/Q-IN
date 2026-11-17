@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { cn, roleLabel } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth'
+import { terminateSession } from '../../session/sessionTermination'
 import { useUiStore } from '../../stores/ui'
 import { useQueueStore } from '../../stores/queue'
 import { Logo } from '../Logo'
@@ -41,7 +42,6 @@ const ACCOUNT: NavItem[] = [{ to: '/app/settings', label: 'Settings', icon: Icon
 
 export function Sidebar() {
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const sidebarOpen = useUiStore((state) => state.sidebarOpen)
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen)
   const activeTicket = useQueueStore((state) => state.activeTicket)
@@ -56,9 +56,8 @@ export function Sidebar() {
     0,
   )
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  const handleLogout = async () => {
+    await terminateSession({ navigate })
   }
 
   const content = (
