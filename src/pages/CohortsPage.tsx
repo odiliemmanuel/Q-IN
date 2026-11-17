@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { Avatar, Badge, Button, Card, Input, Modal, Progress, Textarea } from '../components/ui'
-import { IconArrowRight, IconPlus, IconQueue, IconUsers, IconActivity } from '../components/icons'
+import { IconArrowRight, IconPlus, IconQueue, IconUsers, IconActivity, IconAlert, IconTrash } from '../components/icons'
 import { useAuthStore } from '../stores/auth'
 import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
@@ -11,6 +11,8 @@ export function CohortsPage() {
   const cohorts = useQueueStore((state) => state.cohorts)
   const queues = useQueueStore((state) => state.queues)
   const addCohort = useQueueStore((state) => state.addCohort)
+  const disableCohort = useQueueStore((state) => state.disableCohort)
+  const deleteCohort = useQueueStore((state) => state.deleteCohort)
   const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
@@ -141,6 +143,36 @@ export function CohortsPage() {
                   <IconQueue className="h-3.5 w-3.5" />
                   {cohortQueues.filter((queue) => queue.isOpen).length} accepting entries
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge
+                    tone={cohort.isActive ? 'brand' : 'danger'}
+                    className="capitalize"
+                  >
+                    {cohort.isActive ? 'Active' : 'Disabled'}
+                  </Badge>
+                  {cohort.isActive && canManage ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void disableCohort(cohort.id)}
+                      title={`Disable ${cohort.name}`}
+                    >
+                      <IconAlert className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                  {canManage ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void deleteCohort(cohort.id)}
+                      title={`Delete ${cohort.name}`}
+                    >
+                      <IconTrash className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+
                 <Link
                   to={`/app/queues?cohort=${cohort.id}`}
                   className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"

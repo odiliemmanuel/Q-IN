@@ -52,6 +52,7 @@ export interface Cohort {
   description: string
   memberCount: number
   createdAt: string
+  isActive?: boolean
 }
 
 export interface AppNotification {

@@ -5,7 +5,12 @@ export interface Cohort {
   id: string
   name: string
   isActive: boolean
-  createdAt: string
+  createdAt?: string
+}
+
+export interface CohortResponse {
+  id: string
+  name: string
 }
 
 export interface CreateCohortRequest {
@@ -15,23 +20,13 @@ export interface CreateCohortRequest {
 
 export const cohortsApi = {
   async getAllCohorts(): Promise<Cohort[]> {
-    const response = await api.get<ApiResponse<{ id: string; name: string }[]>>(API_ENDPOINTS.cohorts.list, false)
-    return response.data.map(c => ({
-      id: c.id,
-      name: c.name,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    }))
+    const response = await api.get<ApiResponse<CohortResponse[]>>(API_ENDPOINTS.cohorts.list, false)
+    return response.data.map((c) => ({ id: c.id, name: c.name, isActive: true }))
   },
 
   async createCohort(data: CreateCohortRequest): Promise<Cohort> {
-    const response = await api.post<ApiResponse<{ id: string; name: string }>>(API_ENDPOINTS.cohorts.create, data)
-    return {
-      id: response.data.id,
-      name: response.data.name,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    }
+    const response = await api.post<ApiResponse<CohortResponse>>(API_ENDPOINTS.cohorts.create, data)
+    return { id: response.data.id, name: response.data.name, isActive: true }
   },
 
   async disableCohort(id: string): Promise<void> {
