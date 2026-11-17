@@ -179,7 +179,7 @@ export interface RegisterPayload {
   firstName: string
   lastName: string
   userName: string
-  /** Exactly 4 digits. */
+  /** Exactly 6 digits. */
   pin: string
   email: string
   phoneNumber?: string
