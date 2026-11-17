@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
-import { loadJSON, saveJSON } from '../lib/persist'
+import { loadJSON, debouncedSaveJSON } from '../lib/persist'
 import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
 import {
@@ -157,7 +157,7 @@ interface QueueState extends PersistedData {
 }
 
 function persist(state: PersistedData) {
-  saveJSON(KEY, {
+  debouncedSaveJSON(KEY, {
     cohorts: state.cohorts,
     queues: state.queues,
     activeTicket: state.activeTicket,

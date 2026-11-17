@@ -1,10 +1,11 @@
+import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Queue } from '../lib/types'
 import { cn } from '../lib/utils'
 import { Badge, Button, Card, Progress } from './ui'
 import { IconClock, IconUsers } from './icons'
 
-export function QueueCard({
+const QueueCardComponent = ({
   queue,
   cohortName,
   joined = false,
@@ -14,8 +15,8 @@ export function QueueCard({
   cohortName: string
   joined?: boolean
   className?: string
-}) {
-  const waiting = queue.entries.filter((entry) => entry.status === 'WAITING').length
+}) => {
+  const waiting = useMemo(() => queue.entries.filter((entry) => entry.status === 'WAITING').length, [queue.entries])
 
   return (
     <Card className={cn('flex flex-col p-5 transition-shadow hover:shadow-md', className)}>
@@ -79,3 +80,5 @@ function Metric({
     </div>
   )
 }
+
+export const QueueCard = React.memo(QueueCardComponent)

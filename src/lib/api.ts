@@ -15,6 +15,14 @@ export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 const TOKENS_KEY = 'qin:tokens'
 const REQUEST_TIMEOUT_MS = 90_000
 
+/** In-flight request dedup cache: key = method + path + params hash. */
+const inflight = new Map<string, Promise<unknown>>()
+
+function requestKey(method: string, path: string, params?: Record<string, string | undefined>): string {
+  const paramStr = params ? JSON.stringify(params) : ''
+  return `${method}:${path}:${paramStr}`
+}
+
 export interface Tokens {
   accessToken: string
   refreshToken: string
@@ -111,9 +119,27 @@ async function requestOnce<T>(path: string, options: RequestOptions, token: stri
 /** Authenticated request with a single automatic refresh-token retry on 401. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const tokens = loadTokens()
+  const { method = 'GET', params } = options
+  const key = requestKey(method, path, params)
+
+  // Return in-flight promise for identical concurrent requests
+  if (inflight.has(key)) {
+    return inflight.get(key) as Promise<T>
+  }
+
+  const promise = (async () => {
+    try {
+      const { data } = await requestOnce<T>(path, options, tokens?.accessToken ?? null)
+      return data
+    } finally {
+      inflight.delete(key)
+    }
+  })()
+
+  inflight.set(key, promise)
+
   try {
-    const { data } = await requestOnce<T>(path, options, tokens?.accessToken ?? null)
-    return data
+    return await promise
   } catch (error) {
     const canRefresh =
       options.allowRefresh !== false &&

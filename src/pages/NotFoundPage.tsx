@@ -1,9 +1,12 @@
-import { Link } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { Button } from '../components/ui'
 import { IconArrowLeft, IconQueue } from '../components/icons'
+import { useNavigate } from 'react-router-dom'
 
 export function NotFoundPage() {
+  const navigate = useNavigate()
+  const goBack = () => navigate(-1)
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center dark:bg-slate-950">
       <Logo />
@@ -17,9 +20,9 @@ export function NotFoundPage() {
       <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500 dark:text-slate-400">
         The page you were looking for may have moved, or the link might be out of date.
       </p>
-      <Link to="/app/dashboard" className="mt-7">
-        <Button leftIcon={<IconArrowLeft className="h-4 w-4" />}>Back to dashboard</Button>
-      </Link>
+      <button type="button" onClick={goBack} className="mt-7 inline-flex items-center gap-1">
+        <Button leftIcon={<IconArrowLeft className="h-4 w-4" />}>Back</Button>
+      </button>
     </div>
   )
 }
