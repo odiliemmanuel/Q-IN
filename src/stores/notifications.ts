@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { AppNotification } from '../lib/types'
-import { loadJSON, saveJSON } from '../lib/persist'
+import { debouncedSaveJSON, loadJSON } from '../lib/persist'
 import { uid } from '../lib/utils'
 
 const KEY = 'qin:notifications'
@@ -19,21 +19,21 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   markRead: (id) =>
     set((state) => {
       const items = state.items.map((item) => (item.id === id ? { ...item, read: true } : item))
-      saveJSON(KEY, items)
+      debouncedSaveJSON(KEY, items)
       return { items }
     }),
 
   markAllRead: () =>
     set((state) => {
       const items = state.items.map((item) => ({ ...item, read: true }))
-      saveJSON(KEY, items)
+      debouncedSaveJSON(KEY, items)
       return { items }
     }),
 
   remove: (id) =>
     set((state) => {
       const items = state.items.filter((item) => item.id !== id)
-      saveJSON(KEY, items)
+      debouncedSaveJSON(KEY, items)
       return { items }
     }),
 
@@ -43,7 +43,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         { id: uid('ntf'), title, message, type, read: false, createdAt: new Date().toISOString() },
         ...state.items,
       ].slice(0, 40)
-      saveJSON(KEY, items)
+      debouncedSaveJSON(KEY, items)
       return { items }
     }),
 }))

@@ -133,23 +133,29 @@ export function JoinPage() {
           const w = video.videoWidth
           const h = video.videoHeight
           if (w && h) {
-            canvas.width = w
-            canvas.height = h
-            const ctx = canvas.getContext('2d', { willReadFrequently: true })
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, w, h)
-              const image = ctx.getImageData(0, 0, w, h)
-              const found = jsQR(image.data, w, h, { inversionAttempts: 'dontInvert' })
-              if (found?.data) {
-                stopScan()
-                void joinWith(found.data)
-                return
+            // Throttle QR decode to ~10fps (every 6th frame at 60fps)
+            const now = performance.now()
+            if (!tick.lastDecode || now - tick.lastDecode >= 100) {
+              tick.lastDecode = now
+              canvas.width = w
+              canvas.height = h
+              const ctx = canvas.getContext('2d', { willReadFrequently: true })
+              if (ctx) {
+                ctx.drawImage(video, 0, 0, w, h)
+                const image = ctx.getImageData(0, 0, w, h)
+                const found = jsQR(image.data, w, h, { inversionAttempts: 'dontInvert' })
+                if (found?.data) {
+                  stopScan()
+                  void joinWith(found.data)
+                  return
+                }
               }
             }
           }
         }
         rafRef.current = requestAnimationFrame(tick)
       }
+      tick.lastDecode = 0
       rafRef.current = requestAnimationFrame(tick)
     } catch {
       setCameraError('We could not access your camera. You can enter the code instead.')

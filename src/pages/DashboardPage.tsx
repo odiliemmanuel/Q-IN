@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { QueueCard } from '../components/QueueCard'
 import { Avatar, Button, Card, CardHeader, EmptyState, Progress } from '../components/ui'
@@ -25,23 +26,42 @@ export function DashboardPage() {
   const notifications = useNotificationStore((state) => state.items)
   const notify = useUiStore((state) => state.notify)
 
-  const openQueues = queues.filter((queue) => queue.isOpen)
-  const totalWaiting = queues.reduce(
-    (sum, queue) => sum + queue.entries.filter((entry) => entry.status === 'WAITING').length,
-    0,
-  )
-  const avgWait = openQueues.length
-    ? Math.round(openQueues.reduce((sum, queue) => sum + queue.avgServiceMinutes, 0) / openQueues.length)
-    : 0
+  const [date] = useState(() => new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))
 
-  const activeQueue = activeTicket ? queues.find((queue) => queue.id === activeTicket.queueId) : undefined
-  const position = activeQueue && activeTicket ? positionOf(activeQueue, activeTicket.entryId) : 0
-  const eta = activeQueue ? waitMinutes(position, activeQueue.avgServiceMinutes) : 0
+  // Index cohorts by id once: O(n) instead of O(n*m) per render
+  const cohortById = useMemo(() => new Map(cohorts.map((c) => [c.id, c])), [cohorts])
+  const queueById = useMemo(() => new Map(queues.map((q) => [q.id, q])), [queues])
+  const queuesByCohort = useMemo(
+    () => queues.reduce<Record<string, typeof queues>>((acc, q) => {
+      const bucket = acc[q.cohortId ?? ''] ?? []
+      acc[q.cohortId ?? ''] = [...bucket, q]
+      return acc
+    }, {} as Record<string, typeof queues>),
+    [queues],
+  )
+
+  const openQueues = useMemo(() => queues.filter((queue) => queue.isOpen), [queues])
+  const totalWaiting = useMemo(
+    () =>
+      queues.reduce(
+        (sum: number, queue: { entries: { status: string }[] }) => sum + queue.entries.filter((entry) => entry.status === 'WAITING').length,
+        0,
+      ),
+    [queues],
+  )
+  const avgWait = useMemo(
+    () => (openQueues.length ? Math.round(openQueues.reduce((sum, queue) => sum + queue.avgServiceMinutes, 0) / openQueues.length) : 0),
+    [openQueues],
+  )
+
+  const activeQueue = useMemo(() => (activeTicket ? queueById.get(activeTicket.queueId) : undefined), [activeTicket, queueById])
+  const position = useMemo(() => (activeQueue && activeTicket ? positionOf(activeQueue, activeTicket.entryId) : 0), [activeQueue, activeTicket])
+  const eta = useMemo(() => (activeQueue ? waitMinutes(position, activeQueue.avgServiceMinutes) : 0), [activeQueue, position])
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+        eyebrow={date}
         title={`${greeting()}, ${user?.name.split(' ')[0] ?? 'there'}`}
         description="Here is what is happening across your cohorts today."
         actions={
@@ -64,7 +84,7 @@ export function DashboardPage() {
                   In queue
                 </span>
                 <span className="truncate text-[12px] text-white/70">
-                  {cohorts.find((cohort) => cohort.id === activeQueue.cohortId)?.name}
+                  {cohortById.get(activeQueue.cohortId ?? '')?.name}
                 </span>
               </div>
 
@@ -162,7 +182,7 @@ export function DashboardPage() {
                 <QueueCard
                   key={queue.id}
                   queue={queue}
-                  cohortName={cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? 'Cohort'}
+                  cohortName={cohortById.get(queue.cohortId ?? '')?.name ?? 'Cohort'}
                   joined={activeTicket?.queueId === queue.id}
                 />
               ))}
@@ -181,9 +201,10 @@ export function DashboardPage() {
             <CardHeader title="Your cohorts" description="Jump back into a group." />
             <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
               {cohorts.map((cohort) => {
-                const cohortQueues = queues.filter((queue) => queue.cohortId === cohort.id)
+                const cohortQueues = queuesByCohort[cohort.id] ?? []
                 const waiting = cohortQueues.reduce(
-                  (sum, queue) => sum + queue.entries.filter((entry) => entry.status === 'WAITING').length,
+                  (sum: number, queue: { entries: { status: string }[] }) =>
+                    sum + queue.entries.filter((entry) => entry.status === 'WAITING').length,
                   0,
                 )
                 return (

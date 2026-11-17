@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { PageHeader } from '../components/PageHeader'
 import {
@@ -47,29 +47,36 @@ export function QueueDetailPage() {
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
 
+  const goBack = () => navigate(-1)
+
   const [showQr, setShowQr] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [gateCode, setGateCode] = useState('')
   const [gateError, setGateError] = useState<string | null>(null)
+  const [gateBusy, setGateBusy] = useState(false)
 
   const queue = queues.find((item) => item.id === queueId)
 
   if (!queue) {
     return (
       <div className="space-y-6">
-        <Link to="/app/queues" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400">
+        <button
+          type="button"
+          onClick={goBack}
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400"
+        >
           <IconArrowLeft className="h-4 w-4" />
           Back to queues
-        </Link>
+        </button>
         <Card>
           <EmptyState
             icon={<IconQueue className="h-5 w-5" />}
             title="Queue not found"
             description="This queue may have been removed or the link is incorrect."
             action={
-              <Link to="/app/queues">
-                <Button size="sm">Browse queues</Button>
-              </Link>
+              <button type="button" onClick={goBack} className="text-[13px] font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+                Browse queues
+              </button>
             }
           />
         </Card>
@@ -99,8 +106,6 @@ export function QueueDetailPage() {
     setShowQr(true)
   }
 
-  const [gateBusy, setGateBusy] = useState(false)
-
   const joinWithGateCode = async (event: React.FormEvent) => {
     event.preventDefault()
     setGateError(null)
@@ -125,13 +130,14 @@ export function QueueDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link
-        to="/app/queues"
+      <button
+        type="button"
+        onClick={goBack}
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
       >
         <IconArrowLeft className="h-4 w-4" />
         Back to queues
-      </Link>
+      </button>
 
       <PageHeader
         eyebrow={queue.queueDate ? `${queue.queueDate}${queue.recurring ? ' · Recurring daily' : ''}` : cohort?.name}

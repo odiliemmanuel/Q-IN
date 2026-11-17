@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { Avatar, Badge, Button, Card, Input, Modal, Progress, Textarea } from '../components/ui'
 import { IconArrowRight, IconPlus, IconQueue, IconUsers, IconActivity, IconAlert, IconTrash } from '../components/icons'
@@ -16,12 +16,15 @@ export function CohortsPage() {
   const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
   const user = useAuthStore((state) => state.user)
   const notify = useUiStore((state) => state.notify)
+  const navigate = useNavigate()
 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [membersOpen, setMembersOpen] = useState(false)
+  const [selectedCohort, setSelectedCohort] = useState<{ id: string; name: string } | null>(null)
 
   const canManage = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
@@ -34,14 +37,57 @@ export function CohortsPage() {
     }
   }, [canManage, hydrateFromBackend])
 
-  // Calculate member counts from queues
-  const cohortsWithCounts = cohorts.map((cohort) => {
-    const cohortQueues = queues.filter((queue) => queue.cohortId === cohort.id)
-    const memberCount = new Set(
-      cohortQueues.flatMap((queue) => queue.entries.map((entry) => entry.id))
-    ).size
-    return { ...cohort, memberCount }
-  })
+  // Index queues by cohortId once: O(n) instead of O(n*m) per render
+  const queuesByCohort = useMemo(
+    () => queues.reduce<Record<string, typeof queues>>((acc, q) => {
+      const bucket = acc[q.cohortId ?? ''] ?? []
+      acc[q.cohortId ?? ''] = [...bucket, q]
+      return acc
+    }, {} as Record<string, typeof queues>),
+    [queues],
+  )
+
+  // Pre-compute cohort stats once: O(n + m) instead of O(n*m)
+  const cohortsWithCounts = useMemo(
+    () =>
+      cohorts.map((cohort) => {
+        const cohortQueues = queuesByCohort[cohort.id] ?? []
+        const allEntryIds = new Set<string>()
+        let waiting = 0
+        for (const queue of cohortQueues) {
+          for (const entry of queue.entries) {
+            if (!allEntryIds.has(entry.id)) {
+              allEntryIds.add(entry.id)
+            }
+            if (entry.status === 'WAITING') waiting += 1
+          }
+        }
+        return { ...cohort, memberCount: allEntryIds.size, waiting, cohortQueues }
+      }),
+    [cohorts, queuesByCohort],
+  )
+
+  const viewMembers = (cohort: { id: string; name: string }) => {
+    setSelectedCohort(cohort)
+    setMembersOpen(true)
+  }
+
+  // Pre-compute unique members for the selected cohort: O(m) where m = entries in that cohort's queues
+  const selectedMembers = useMemo(() => {
+    if (!selectedCohort) return []
+    const cohortQueues = queuesByCohort[selectedCohort.id] ?? []
+    const seen = new Set<string>()
+    const members: typeof queues[0]['entries'][number][] = []
+    for (const queue of cohortQueues) {
+      for (const entry of queue.entries) {
+        if (!seen.has(entry.id)) {
+          seen.add(entry.id)
+          members.push(entry)
+        }
+      }
+    }
+    return members
+  }, [selectedCohort, queuesByCohort])
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -81,12 +127,8 @@ export function CohortsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cohortsWithCounts.map((cohort) => {
-          const cohortQueues = queues.filter((queue) => queue.cohortId === cohort.id)
+          const { cohortQueues, waiting } = cohort
           const openQueues = cohortQueues.filter((queue) => queue.isOpen)
-          const waiting = cohortQueues.reduce(
-            (sum, queue) => sum + queue.entries.filter((entry) => entry.status === 'WAITING').length,
-            0,
-          )
 
           return (
             <Card key={cohort.id} className="flex flex-col p-5 transition-shadow hover:shadow-md">
@@ -141,7 +183,7 @@ export function CohortsPage() {
               <div className="mt-4 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 dark:text-slate-400">
                   <IconQueue className="h-3.5 w-3.5" />
-                  {cohortQueues.filter((queue) => queue.isOpen).length} accepting entries
+                  {openQueues.length} accepting entries
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -180,6 +222,14 @@ export function CohortsPage() {
                   View queues
                   <IconArrowRight className="h-3.5 w-3.5" />
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => viewMembers(cohort)}
+                  className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                >
+                  <IconUsers className="h-3.5 w-3.5" />
+                  View members
+                </button>
               </div>
             </Card>
           )
@@ -193,7 +243,7 @@ export function CohortsPage() {
           </span>
           <div>
             <p className="text-[13.5px] font-semibold text-slate-900 dark:text-white">
-              {cohortsWithCounts.reduce((sum, cohort) => sum + cohort.memberCount, 0)} people across{' '}
+              {cohortsWithCounts.reduce((sum, c) => sum + c.memberCount, 0)} people across{' '}
               {cohortsWithCounts.length} cohorts
             </p>
             <p className="text-[12px] text-slate-500 dark:text-slate-400">
@@ -239,6 +289,54 @@ export function CohortsPage() {
           />
           {error ? <p className="text-[13px] font-medium text-rose-600 dark:text-rose-400">{error}</p> : null}
         </form>
+      </Modal>
+
+      <Modal
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        title={`Members — ${selectedCohort?.name}`}
+        description="Everyone who has joined a queue in this cohort."
+        footer={
+          <Button variant="ghost" onClick={() => setMembersOpen(false)}>
+            Done
+          </Button>
+        }
+      >
+        {selectedCohort ? (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-[13px] font-medium text-slate-900 dark:text-white">
+                {selectedMembers.length} member
+                {selectedMembers.length !== 1 ? 's' : ''}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate(`/app/queues?cohort=${selectedCohort.id}`)}
+                className="text-[12px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+              >
+                View queues
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-6">
+              {selectedMembers.map((entry) => (
+                <div key={entry.id} className="flex flex-col items-center gap-2">
+                  <Avatar name={entry.name} src={entry.avatar} size="sm" />
+                  <p className="truncate text-[12px] font-medium text-slate-900 dark:text-white">
+                    {entry.name}
+                  </p>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {entry.status === 'WAITING' ? 'Waiting' : entry.status === 'SERVED' ? 'Served' : 'Skipped'}
+                  </span>
+                </div>
+              ))}
+              {selectedMembers.length === 0 && (
+                <div className="col-span-full py-8 text-center text-slate-500 dark:text-slate-400">
+                  No members have joined queues in this cohort yet.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </div>
   )
