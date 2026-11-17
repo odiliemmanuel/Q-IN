@@ -1,4 +1,6 @@
 import { API_BASE_URL, API_ENDPOINTS } from './config'
+import { tokenStorage } from '../auth/tokenStorage'
+import { terminateSession } from '../session/sessionTermination'
 
 export interface ApiResponse<T = unknown> {
   success: boolean
@@ -47,24 +49,21 @@ export class ApiError extends Error {
   }
 }
 
+
 async function getAuthToken(): Promise<string | null> {
-  const token = localStorage.getItem('qin:accessToken')
-  return token
+  return tokenStorage.getAccess()
 }
 
 async function getRefreshToken(): Promise<string | null> {
-  const token = localStorage.getItem('qin:refreshToken')
-  return token
+  return tokenStorage.getRefresh()
 }
 
 function setTokens(accessToken: string, refreshToken: string): void {
-  localStorage.setItem('qin:accessToken', accessToken)
-  localStorage.setItem('qin:refreshToken', refreshToken)
+  tokenStorage.set(accessToken, refreshToken, tokenStorage.getUserId() ?? undefined)
 }
 
 function clearTokens(): void {
-  localStorage.removeItem('qin:accessToken')
-  localStorage.removeItem('qin:refreshToken')
+  tokenStorage.clear()
 }
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -96,7 +95,7 @@ async function refreshAccessToken(): Promise<string | null> {
     // Ignore refresh errors
   }
 
-  clearTokens()
+  tokenStorage.clear()
   return null
 }
 
@@ -128,8 +127,8 @@ async function request<T>(
     if (newToken) {
       return request<T>(endpoint, options, requiresAuth, true)
     }
-    clearTokens()
-    window.location.href = '/login'
+    tokenStorage.clear()
+    void terminateSession()
     throw new ApiError('Session expired. Please log in again.', 401)
   }
 
@@ -190,8 +189,8 @@ export const api = {
         if (newToken) {
           return doUpload(true)
         }
-        clearTokens()
-        window.location.href = '/login'
+        tokenStorage.clear()
+        void terminateSession()
         throw new ApiError('Session expired. Please log in again.', 401)
       }
 

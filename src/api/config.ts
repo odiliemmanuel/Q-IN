@@ -19,7 +19,6 @@ export const API_ENDPOINTS = {
     updatePassword: '/api/v1/users/update-password',
   },
   users: {
-    caricature: (userId: string) => `/api/v1/users/${userId}/caricature`,
     profilePicture: (userId: string) => `/api/v1/users/${userId}/profile-picture`,
   },
   queues: {

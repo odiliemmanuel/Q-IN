@@ -12,7 +12,9 @@
 
 export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
-const TOKENS_KEY = 'qin:tokens'
+import { tokenStorage } from '../auth/tokenStorage'
+import { terminateSession } from '../session/sessionTermination'
+
 const REQUEST_TIMEOUT_MS = 90_000
 
 /** In-flight request dedup cache: key = method + path + params hash. */
@@ -46,16 +48,18 @@ export class ApiError extends Error {
 }
 
 export function loadTokens(): Tokens | null {
-  try {
-    return JSON.parse(localStorage.getItem(TOKENS_KEY) ?? 'null') as Tokens | null
-  } catch {
-    return null
-  }
+  const accessToken = tokenStorage.getAccess()
+  const refreshToken = tokenStorage.getRefresh()
+  if (!accessToken || !refreshToken) return null
+  return { accessToken, refreshToken, userId: tokenStorage.getUserId() ?? '' }
 }
 
 export function saveTokens(tokens: Tokens | null): void {
-  if (tokens) localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens))
-  else localStorage.removeItem(TOKENS_KEY)
+  if (!tokens) {
+    tokenStorage.clear()
+    return
+  }
+  tokenStorage.set(tokens.accessToken, tokens.refreshToken, tokens.userId)
 }
 
 interface RequestOptions {
@@ -146,11 +150,23 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       tokens?.refreshToken &&
       error instanceof ApiError &&
       error.status === 401
-    if (!canRefresh) throw error
+    if (!canRefresh) {
+      if (error instanceof ApiError && error.status === 401) {
+        tokenStorage.clear()
+        void terminateSession()
+      }
+      throw error
+    }
 
-    const refreshed = await refreshAccessToken(tokens.refreshToken)
-    const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
-    return data
+    try {
+      const refreshed = await refreshAccessToken(tokens.refreshToken)
+      const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
+      return data
+    } catch (refreshError) {
+      tokenStorage.clear()
+      void terminateSession()
+      throw refreshError
+    }
   }
 }
 
@@ -229,22 +245,13 @@ export async function refreshAccessToken(refreshToken: string): Promise<Tokens> 
     auth: false,
     allowRefresh: false,
   })
-  const tokens: Tokens = {
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
-    userId: current?.userId ?? data.userId,
-  }
-  saveTokens(tokens)
-  return tokens
+  const nextUserId = current?.userId ?? data.userId
+  tokenStorage.set(data.accessToken, data.refreshToken, nextUserId)
+  return { accessToken: data.accessToken, refreshToken: data.refreshToken, userId: nextUserId }
 }
 
 export async function logoutUser(): Promise<void> {
-  try {
-    await request('/api/v1/users/logout', { method: 'POST' })
-  } catch {
-    // Logging out locally even if the backend is unreachable.
-  }
-  saveTokens(null)
+  await terminateSession()
 }
 
 /** Upload a profile picture directly (multipart). Returns the picture URL from backend. */

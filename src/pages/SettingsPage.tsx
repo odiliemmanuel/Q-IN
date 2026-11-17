@@ -16,11 +16,11 @@ import { cn, roleLabel } from '../lib/utils'
 import { loadJSON, saveJSON } from '../lib/persist'
 import { useAuthStore } from '../stores/auth'
 import { useUiStore } from '../stores/ui'
+import { terminateSession } from '../session/sessionTermination'
 import { uploadProfilePicture, setCachedProfilePictureUrl } from '../lib/api'
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const updateProfile = useAuthStore((state) => state.updateProfile)
   const setProfilePicture = useAuthStore((state) => state.setProfilePicture)
   const theme = useUiStore((state) => state.theme)
@@ -219,9 +219,8 @@ export function SettingsPage() {
                 variant="outline"
                 className="w-full justify-start"
                 leftIcon={<IconLogout className="h-4 w-4" />}
-                onClick={() => {
-                  logout()
-                  navigate('/login')
+                onClick={async () => {
+                  await terminateSession({ navigate })
                 }}
               >
                 Sign out

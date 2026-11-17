@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Role, User } from '../lib/types'
-import { loadJSON, saveJSON, flushPendingWrites } from '../lib/persist'
+import { loadJSON, saveJSON } from '../lib/persist'
+import { terminateSession } from '../session/sessionTermination'
 import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
@@ -221,16 +222,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    flushPendingWrites()
-    try {
-      await authApi.logout()
-    } catch {
-      // Ignore logout errors
-    }
-    localStorage.removeItem('qin:accessToken')
-    localStorage.removeItem('qin:refreshToken')
-    localStorage.removeItem(USER_KEY)
-    set({ user: null, error: null })
+    await terminateSession()
   },
 
   fetchUserProfile: async () => {

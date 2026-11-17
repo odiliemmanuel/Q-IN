@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { cn, roleLabel } from '../../lib/utils'
 import { useAuthStore } from '../../stores/auth'
+import { terminateSession } from '../../session/sessionTermination'
 import { useUiStore } from '../../stores/ui'
 import { Avatar } from '../ui'
 import { NotificationBell } from './NotificationBell'
@@ -30,7 +31,6 @@ export function Topbar() {
   const theme = useUiStore((state) => state.theme)
   const toggleTheme = useUiStore((state) => state.toggleTheme)
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const location = useLocation()
   const [query, setQuery] = useState('')
@@ -142,10 +142,9 @@ export function Topbar() {
                 <div className="border-t border-slate-100 p-1.5 dark:border-slate-800">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setMenuOpen(false)
-                      logout()
-                      navigate('/login')
+                      await terminateSession({ navigate })
                     }}
                     className={cn(
                       'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium',
