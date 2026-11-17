@@ -77,12 +77,10 @@ export function uid(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-
 export function generateJoinCode(): string {
   let tail = ''
-  for (let i = 0; i < 4; i += 1) {
-    tail += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+  for (let i = 0; i < 6; i += 1) {
+    tail += String(Math.floor(Math.random() * 10))
   }
   return tail
 }
