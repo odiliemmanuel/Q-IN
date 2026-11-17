@@ -29,6 +29,7 @@ export const API_ENDPOINTS = {
     getStats: (queueId: string) => `/api/queue/${queueId}/stats`,
     enter: (userId: string) => `/api/queue/${userId}/enter`,
     exit: (userId: string) => `/api/queue/${userId}/exit`,
+    close: (queueId: string) => `/api/queue/${queueId}/close`,
     updateCapacity: (capacity: number) => `/api/queue/${capacity}/update/capacity`,
     delete: (queueId: string) => `/api/queue/${queueId}/delete`,
   },

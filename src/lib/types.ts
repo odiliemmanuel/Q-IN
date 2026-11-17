@@ -9,7 +9,9 @@ export interface User {
   role: Role
   emailVerified: boolean
   createdAt: string
-  /** Avatar generated at signup (data URL). */
+  /** Profile picture URL from backend. */
+  profilePictureUrl?: string | null
+  /** Legacy/local avatar (data URL or URL). */
   avatar?: string
 }
 
@@ -18,8 +20,13 @@ export interface QueueEntry {
   name: string
   joinedAt: string
   status: QueueEntryStatus
-  /** Avatar of the person in line (data URL). */
+  /** Profile picture URL or legacy avatar. */
   avatar?: string
+  role?: string
+  gender?: string
+  cohort?: string
+  whatsAppNumber?: string
+  checkedIn?: boolean
 }
 
 export interface Queue {
@@ -29,6 +36,9 @@ export interface Queue {
   description: string
   capacity: number
   isOpen: boolean
+  isFull?: boolean
+  recurring?: boolean
+  queueDate?: string | null
   avgServiceMinutes: number
   /** Short code members enter (or scan as a QR) to join. */
   joinCode: string

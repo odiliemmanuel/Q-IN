@@ -138,6 +138,7 @@ export interface BackendLoginResponse {
   userId: string
   role: string
   message?: string
+  profilePictureUrl?: string | null
 }
 
 export interface BackendRegisterResponse {
@@ -241,7 +242,8 @@ export async function uploadProfilePicture(userId: string, dataUrl: string): Pro
       throw new ApiError(text || `Profile picture upload failed (${response.status})`, response.status)
     }
     const data = await response.json()
-    return data.data?.url ?? data.data?.profilePictureUrl ?? ''
+    if (typeof data?.data === 'string') return data.data
+    return data?.data?.url ?? data?.data?.profilePictureUrl ?? ''
   } finally {
     clearTimeout(timer)
   }
@@ -258,7 +260,8 @@ export async function fetchProfilePictureUrl(userId: string): Promise<string | n
     })
     if (!response.ok) return null
     const data = await response.json()
-    return data.data?.url ?? data.data?.profilePictureUrl ?? null
+    if (typeof data?.data === 'string') return data.data
+    return data?.data?.url ?? data?.data?.profilePictureUrl ?? null
   } catch {
     return null
   }
@@ -379,31 +382,42 @@ export async function fetchCohorts(): Promise<BackendCohort[]> {
 
 export interface BackendQueue {
   id: string
+  name?: string
+  recurring?: boolean
+  queueDate?: string | null
   maxCapacity: number
   isFull: boolean
   isOpen: boolean
-  createdAt: string
-  queueNumber: number | null
-  closureDate: string | null
+  createdAt?: string
+  createdDate?: string
+  queueNumber?: number | null
+  closureDate?: string | null
 }
 
 export interface BackendQueueUser {
-  id: string
-  firstName: string
-  lastName: string
+  id?: string
+  firstName?: string
+  lastName?: string
   username: string
-  email: string
+  email?: string
+  role?: string
+  cohort?: string
+  whatsAppNumber?: string
   numberInQueue: number
-  inQueue: boolean
+  inQueue?: boolean
+  checkedIn?: boolean
   profilePictureUrl?: string | null
   gender?: string | null
+  queueId?: string
+  message?: string
 }
 
 export interface BackendQueueEntry {
   queueId: string
   username: string
   numberInQueue: number
-  isCheckedIn: boolean
+  isCheckedIn?: boolean
+  checkedIn?: boolean
   profilePictureUrl?: string | null
   message?: string
 }
@@ -413,11 +427,15 @@ export async function fetchAllQueues(): Promise<{ queues: BackendQueue[]; messag
 }
 
 /** Join using the current 6-digit access code (TOTP, rotates every 30s). */
-export async function enterQueue(userId: string, code: string): Promise<BackendQueueEntry> {
+export async function enterQueue(userId: string, code: string, queueId?: string): Promise<BackendQueueEntry> {
   return request<BackendQueueEntry>(`/api/queue/${userId}/enter`, {
     method: 'POST',
-    params: { code },
+    params: queueId ? { code, queueId } : { code },
   })
+}
+
+export async function closeQueue(queueId: string): Promise<void> {
+  await request(`/api/queue/${queueId}/close`, { method: 'POST' })
 }
 
 export async function exitQueue(userId: string): Promise<void> {
@@ -433,8 +451,9 @@ export async function fetchQueueStats(queueId: string): Promise<string> {
 }
 
 export interface BackendCreateQueuePayload {
-  queueId: string
   maxCapacity: number
+  name?: string
+  recurring?: boolean
 }
 
 export async function createQueueOnBackend(payload: BackendCreateQueuePayload): Promise<unknown> {

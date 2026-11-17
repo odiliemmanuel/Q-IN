@@ -26,8 +26,11 @@ export function QueueCard({
               {queue.name}
             </h3>
             {joined ? <Badge tone="brand">Joined</Badge> : null}
+            {queue.recurring ? <Badge tone="violet">Recurring daily</Badge> : null}
           </div>
-          <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">{cohortName}</p>
+          <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
+            {cohortName}{queue.queueDate ? ` · ${queue.queueDate}` : ''}
+          </p>
         </div>
         <Badge tone={queue.isOpen ? 'success' : 'neutral'} dot>
           {queue.isOpen ? 'Open' : 'Closed'}

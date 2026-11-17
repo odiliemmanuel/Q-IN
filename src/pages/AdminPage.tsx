@@ -49,6 +49,7 @@ export function AdminPage() {
   const queues = useQueueStore((state) => state.queues)
   const cohorts = useQueueStore((state) => state.cohorts)
   const toggleQueue = useQueueStore((state) => state.toggleQueue)
+  const closeQueue = useQueueStore((state) => state.closeQueue)
   const updateQueueCapacity = useQueueStore((state) => state.updateQueueCapacity)
   const deleteQueue = useQueueStore((state) => state.deleteQueue)
   const notify = useUiStore((state) => state.notify)
@@ -269,7 +270,9 @@ export function AdminPage() {
                           >
                             {queue.name}
                           </Link>
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500">{queue.capacity} capacity</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                            {queue.capacity} capacity{queue.queueDate ? ` · ${queue.queueDate}` : ''}{queue.recurring ? ' · Recurring daily' : ''}
+                          </p>
                         </td>
                         <td className="px-3 py-3 text-slate-500 dark:text-slate-400">
                           {cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? '—'}
@@ -295,7 +298,8 @@ export function AdminPage() {
                               variant="outline"
                               leftIcon={queue.isOpen ? <IconPause className="h-3.5 w-3.5" /> : <IconPlay className="h-3.5 w-3.5" />}
                               onClick={() => {
-                                toggleQueue(queue.id)
+                                if (queue.isOpen) void closeQueue(queue.id)
+                                else void toggleQueue(queue.id)
                                 notify(queue.isOpen ? `${queue.name} closed` : `${queue.name} opened`, 'info')
                               }}
                             >

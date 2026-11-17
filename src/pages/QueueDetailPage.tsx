@@ -108,7 +108,7 @@ export function QueueDetailPage() {
     try {
       const result: JoinResult = await useQueueStore
         .getState()
-        .joinByCode(gateCode, user?.name ?? 'You', user?.avatar)
+        .joinByCode(gateCode, user?.name ?? 'You', user?.profilePictureUrl ?? user?.avatar, queue.id)
       if (result === 'joined') {
         notify(joinResultMessage(result), 'success')
         return
@@ -134,7 +134,7 @@ export function QueueDetailPage() {
       </Link>
 
       <PageHeader
-        eyebrow={cohort?.name}
+        eyebrow={queue.queueDate ? `${queue.queueDate}${queue.recurring ? ' · Recurring daily' : ''}` : cohort?.name}
         title={queue.name}
         description={queue.description}
         actions={
