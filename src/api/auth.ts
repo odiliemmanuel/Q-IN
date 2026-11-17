@@ -11,7 +11,7 @@ export interface LoginResponse {
   refreshToken: string
   userId: string
   role: string
-  
+  profilePictureUrl?: string | null
   message: string
 }
 
@@ -49,6 +49,7 @@ export interface VerifyEmailAndLoginResponse {
   refreshToken: string
   userId: string
   role: string
+  profilePictureUrl?: string | null
   message: string
 }
 

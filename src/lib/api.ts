@@ -138,6 +138,7 @@ export interface BackendLoginResponse {
   userId: string
   role: string
   message?: string
+  profilePictureUrl?: string | null
 }
 
 export interface BackendRegisterResponse {
@@ -220,17 +221,17 @@ export async function logoutUser(): Promise<void> {
   saveTokens(null)
 }
 
-/** Upload the generated caricature (multipart). Returns the caricature URL from backend. */
-export async function uploadCaricature(userId: string, dataUrl: string): Promise<string> {
+/** Upload a profile picture directly (multipart). Returns the picture URL from backend. */
+export async function uploadProfilePicture(userId: string, dataUrl: string): Promise<string> {
   const tokens = loadTokens()
   const blob = await (await fetch(dataUrl)).blob()
   const form = new FormData()
-  form.append('file', blob, 'caricature.png')
+  form.append('file', blob, 'profile.png')
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    const response = await fetch(`${API_BASE}/api/v1/users/${userId}/caricature`, {
+    const response = await fetch(`${API_BASE}/api/v1/users/${userId}/profile-picture`, {
       method: 'POST',
       headers: tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : undefined,
       body: form,
@@ -238,74 +239,76 @@ export async function uploadCaricature(userId: string, dataUrl: string): Promise
     })
     if (!response.ok) {
       const text = await response.text().catch(() => '')
-      throw new ApiError(text || `Caricature upload failed (${response.status})`, response.status)
+      throw new ApiError(text || `Profile picture upload failed (${response.status})`, response.status)
     }
     const data = await response.json()
-    return data.data?.url ?? data.data?.caricatureUrl ?? ''
+    if (typeof data?.data === 'string') return data.data
+    return data?.data?.url ?? data?.data?.profilePictureUrl ?? ''
   } finally {
     clearTimeout(timer)
   }
 }
 
-/** Fetch user's caricature URL from backend. */
-export async function fetchCaricatureUrl(userId: string): Promise<string | null> {
+/** Fetch user's profile picture URL from backend. */
+export async function fetchProfilePictureUrl(userId: string): Promise<string | null> {
   const tokens = loadTokens()
   if (!tokens) return null
   
   try {
-    const response = await fetch(`${API_BASE}/api/v1/users/${userId}/caricature`, {
+    const response = await fetch(`${API_BASE}/api/v1/users/${userId}/profile-picture`, {
       headers: { Authorization: `Bearer ${tokens.accessToken}` },
     })
     if (!response.ok) return null
     const data = await response.json()
-    return data.data?.url ?? data.data?.caricatureUrl ?? null
+    if (typeof data?.data === 'string') return data.data
+    return data?.data?.url ?? data?.data?.profilePictureUrl ?? null
   } catch {
     return null
   }
 }
 
-/** Cache keys for caricature URLs. */
-const CARICATURE_CACHE_KEY = 'qin:caricature:'
-const CARICATURE_ETAG_KEY = 'qin:caricature:etag:'
+/** Cache keys for profile picture URLs. */
+const PROFILE_PICTURE_CACHE_KEY = 'qin:profile-picture:'
+const PROFILE_PICTURE_ETAG_KEY = 'qin:profile-picture:etag:'
 
-/** Get cached caricature URL for a user. */
-export function getCachedCaricatureUrl(userId: string): string | null {
+/** Get cached profile picture URL for a user. */
+export function getCachedProfilePictureUrl(userId: string): string | null {
   try {
-    return sessionStorage.getItem(`${CARICATURE_CACHE_KEY}${userId}`)
+    return sessionStorage.getItem(`${PROFILE_PICTURE_CACHE_KEY}${userId}`)
   } catch {
     return null
   }
 }
 
-/** Set cached caricature URL for a user. */
-export function setCachedCaricatureUrl(userId: string, url: string): void {
+/** Set cached profile picture URL for a user. */
+export function setCachedProfilePictureUrl(userId: string, url: string): void {
   try {
-    sessionStorage.setItem(`${CARICATURE_CACHE_KEY}${userId}`, url)
+    sessionStorage.setItem(`${PROFILE_PICTURE_CACHE_KEY}${userId}`, url)
   } catch {
     // Ignore storage errors
   }
 }
 
 /** Get cached ETag for conditional requests. */
-export function getCachedCaricatureETag(userId: string): string | null {
+export function getCachedProfilePictureETag(userId: string): string | null {
   try {
-    return sessionStorage.getItem(`${CARICATURE_ETAG_KEY}${userId}`)
+    return sessionStorage.getItem(`${PROFILE_PICTURE_ETAG_KEY}${userId}`)
   } catch {
     return null
   }
 }
 
 /** Set cached ETag. */
-export function setCachedCaricatureETag(userId: string, etag: string): void {
+export function setCachedProfilePictureETag(userId: string, etag: string): void {
   try {
-    sessionStorage.setItem(`${CARICATURE_ETAG_KEY}${userId}`, etag)
+    sessionStorage.setItem(`${PROFILE_PICTURE_ETAG_KEY}${userId}`, etag)
   } catch {
     // Ignore storage errors
   }
 }
 
-/** Poll for caricature updates (with ETag for efficiency). */
-export async function pollCaricatureUpdates(
+/** Poll for profile picture updates (with ETag for efficiency). */
+export async function pollProfilePictureUpdates(
   userId: string,
   onUpdate: (url: string) => void,
   intervalMs = 30_000
@@ -315,7 +318,7 @@ export async function pollCaricatureUpdates(
   const poll = async () => {
     if (stopped) return
     
-    const etag = getCachedCaricatureETag(userId)
+    const etag = getCachedProfilePictureETag(userId)
     const headers: Record<string, string> = {}
     if (etag) headers['If-None-Match'] = etag
     
@@ -323,7 +326,7 @@ export async function pollCaricatureUpdates(
     if (tokens) headers.Authorization = `Bearer ${tokens.accessToken}`
     
     try {
-      const response = await fetch(`${API_BASE}/api/v1/users/${userId}/caricature`, { headers })
+      const response = await fetch(`${API_BASE}/api/v1/users/${userId}/profile-picture`, { headers })
       
       if (response.status === 304) {
         // Not modified - no update
@@ -333,13 +336,13 @@ export async function pollCaricatureUpdates(
       if (!response.ok) return
       
       const newEtag = response.headers.get('ETag')
-      if (newEtag) setCachedCaricatureETag(userId, newEtag)
+      if (newEtag) setCachedProfilePictureETag(userId, newEtag)
       
       const data = await response.json()
-      const url = data.data?.url ?? data.data?.caricatureUrl ?? null
+      const url = data.data?.url ?? data.data?.profilePictureUrl ?? null
       
       if (url) {
-        setCachedCaricatureUrl(userId, url)
+        setCachedProfilePictureUrl(userId, url)
         onUpdate(url)
       }
     } catch {
@@ -379,32 +382,43 @@ export async function fetchCohorts(): Promise<BackendCohort[]> {
 
 export interface BackendQueue {
   id: string
+  name?: string
+  recurring?: boolean
+  queueDate?: string | null
   maxCapacity: number
   isFull: boolean
   isOpen: boolean
-  createdAt: string
-  queueNumber: number | null
-  closureDate: string | null
+  createdAt?: string
+  createdDate?: string
+  queueNumber?: number | null
+  closureDate?: string | null
 }
 
 export interface BackendQueueUser {
-  id: string
-  firstName: string
-  lastName: string
+  id?: string
+  firstName?: string
+  lastName?: string
   username: string
-  email: string
+  email?: string
+  role?: string
+  cohort?: string
+  whatsAppNumber?: string
   numberInQueue: number
-  inQueue: boolean
-  caricatureUrl?: string | null
+  inQueue?: boolean
+  checkedIn?: boolean
+  profilePictureUrl?: string | null
   gender?: string | null
+  queueId?: string
+  message?: string
 }
 
 export interface BackendQueueEntry {
   queueId: string
   username: string
   numberInQueue: number
-  isCheckedIn: boolean
-  caricatureUrl?: string | null
+  isCheckedIn?: boolean
+  checkedIn?: boolean
+  profilePictureUrl?: string | null
   message?: string
 }
 
@@ -413,11 +427,15 @@ export async function fetchAllQueues(): Promise<{ queues: BackendQueue[]; messag
 }
 
 /** Join using the current 6-digit access code (TOTP, rotates every 30s). */
-export async function enterQueue(userId: string, code: string): Promise<BackendQueueEntry> {
+export async function enterQueue(userId: string, code: string, queueId?: string): Promise<BackendQueueEntry> {
   return request<BackendQueueEntry>(`/api/queue/${userId}/enter`, {
     method: 'POST',
-    params: { code },
+    params: queueId ? { code, queueId } : { code },
   })
+}
+
+export async function closeQueue(queueId: string): Promise<void> {
+  await request(`/api/queue/${queueId}/close`, { method: 'POST' })
 }
 
 export async function exitQueue(userId: string): Promise<void> {
@@ -433,8 +451,9 @@ export async function fetchQueueStats(queueId: string): Promise<string> {
 }
 
 export interface BackendCreateQueuePayload {
-  queueId: string
   maxCapacity: number
+  name?: string
+  recurring?: boolean
 }
 
 export async function createQueueOnBackend(payload: BackendCreateQueuePayload): Promise<unknown> {

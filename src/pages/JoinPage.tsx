@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import jsQR from 'jsqr'
-import { Button, Input } from '../components/ui'
+import { Button, Card, Input } from '../components/ui'
 import { IconCamera, IconQueue, IconSparkles } from '../components/icons'
 import { useAuthStore } from '../stores/auth'
-import { joinResultMessage, useQueueStore } from '../stores/queue'
+import { getJoinableQueues, joinResultMessage, useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 import { normalizeJoinCode } from '../lib/utils'
 import { Logo } from '../components/Logo'
@@ -26,10 +26,13 @@ export function JoinPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
+  const queues = useQueueStore((state) => state.queues)
+  const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
   const notify = useUiStore((state) => state.notify)
 
   const [tab, setTab] = useState<'code' | 'scan'>('code')
   const [code, setCode] = useState(searchParams.get('code') ?? '')
+  const [selectedQueueId, setSelectedQueueId] = useState(searchParams.get('queueId') ?? '')
   const [status, setStatus] = useState<string | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
@@ -39,6 +42,11 @@ export function JoinPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
+
+  useEffect(() => { void hydrateFromBackend() }, [hydrateFromBackend])
+
+  const joinable = useMemo(() => getJoinableQueues(queues), [queues])
+  const needsSelection = joinable.length > 1 && !selectedQueueId
 
   const finish = useCallback(
     (result: Parameters<typeof joinResultMessage>[0]) => {
@@ -54,19 +62,28 @@ export function JoinPage() {
         navigate(ticket ? `/app/queues/${ticket.queueId}` : '/app/dashboard')
         return
       }
-      setStatus(joinResultMessage(result))
+      if (result === 'select-queue') {
+        setStatus(joinResultMessage(result))
+        return
+      }
+      setStatus(useQueueStore.getState().lastJoinError ?? joinResultMessage(result))
     },
     [navigate, notify],
   )
 
   const joinWith = useCallback(
-    async (rawCode: string): Promise<Parameters<typeof joinResultMessage>[0]> => {
+    async (rawCode: string, qid?: string) => {
       const store = useQueueStore.getState()
-      const result = await store.joinByCode(extractCode(rawCode), user?.name ?? 'You', user?.avatar)
+      const result = await store.joinByCode(
+        extractCode(rawCode),
+        user?.name ?? 'You',
+        user?.profilePictureUrl ?? user?.avatar,
+        qid || selectedQueueId || undefined,
+      )
       finish(result)
       return result
     },
-    [user, finish],
+    [user, finish, selectedQueueId],
   )
 
   // Auto-join when arriving from a scanned QR link (/join?code=LAB-2048).
@@ -76,9 +93,7 @@ export function JoinPage() {
     if (!urlCode || autoJoinedRef.current) return
     autoJoinedRef.current = true
     void (async () => {
-      const result = await joinWith(urlCode)
-      // On success we navigate away to the queue, so only clean the URL in place
-      // when the join failed and the member stays on this page.
+      const result = await joinWith(urlCode, searchParams.get('queueId') ?? undefined)
       if (result !== 'joined' && result !== 'already-in-queue') {
         setSearchParams({}, { replace: true })
       }
@@ -127,7 +142,7 @@ export function JoinPage() {
               const found = jsQR(image.data, w, h, { inversionAttempts: 'dontInvert' })
               if (found?.data) {
                 stopScan()
-                joinWith(found.data)
+                void joinWith(found.data)
                 return
               }
             }
@@ -158,12 +173,13 @@ export function JoinPage() {
       setStatus('Enter the code shown by the queue admin.')
       return
     }
+    if (needsSelection) {
+      setStatus('Select which queue to join.')
+      return
+    }
     setWorking(true)
     try {
-      const result = await joinWith(code)
-      if (result !== 'joined' && result !== 'already-in-queue') {
-        setStatus(useQueueStore.getState().lastJoinError ?? joinResultMessage(result))
-      }
+      await joinWith(code, selectedQueueId || undefined)
     } finally {
       setWorking(false)
     }
@@ -196,7 +212,6 @@ export function JoinPage() {
             You will see who is on the queue and your position right after joining — not before.
           </p>
 
-          {/* Tabs */}
           <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             {(
               [
@@ -223,10 +238,39 @@ export function JoinPage() {
           <div className="mt-5">
             {tab === 'code' ? (
               <form onSubmit={submitCode} className="space-y-3">
+                {joinable.length > 1 ? (
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                      Select queue
+                    </label>
+                    <select
+                      value={selectedQueueId}
+                      onChange={(e) => setSelectedQueueId(e.target.value)}
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                      required
+                    >
+                      <option value="">Choose a queue…</option>
+                      {joinable.map((q) => (
+                        <option key={q.id} value={q.id}>
+                          {q.name}{q.queueDate ? ` (${q.queueDate})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11.5px] text-slate-500 dark:text-slate-400">
+                      Multiple active queues are available today. Select the one you want to join.
+                    </p>
+                  </div>
+                ) : joinable.length === 1 ? (
+                  <Card className="p-3 text-[13px] text-slate-600 dark:text-slate-300">
+                    Joining: <span className="font-semibold text-slate-900 dark:text-white">{joinable[0].name}</span>
+                    {joinable[0].queueDate ? ` · ${joinable[0].queueDate}` : ''}
+                  </Card>
+                ) : null}
+
                 <Input
                   label="Queue code"
                   name="code"
-                  placeholder="e.g. LAB-2048"
+                  placeholder="e.g. 123456"
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
                   required

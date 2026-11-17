@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { QueueCard } from '../components/QueueCard'
-import { Button, Card, EmptyState, Input, Modal, Textarea } from '../components/ui'
+import { Button, Card, EmptyState, Input, Modal } from '../components/ui'
 import { IconPlus, IconQueue, IconSearch } from '../components/icons'
 import { useAuthStore } from '../stores/auth'
 import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 import { cn } from '../lib/utils'
 
-type Tab = 'all' | 'open' | 'joined'
+type Tab = 'all' | 'open' | 'joined' | 'history'
 
 export function QueuesPage() {
   const [params, setParams] = useSearchParams()
@@ -28,13 +28,13 @@ export function QueuesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({
     name: '',
-    description: '',
     capacity: '20',
-    avgServiceMinutes: '10',
+    recurring: false,
   })
   const [formError, setFormError] = useState<string | null>(null)
 
   const canManage = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
+  const today = new Date().toISOString().slice(0, 10)
 
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params)
@@ -50,44 +50,55 @@ export function QueuesPage() {
       const matchesSearch =
         !needle ||
         queue.name.toLowerCase().includes(needle) ||
-        queue.description.toLowerCase().includes(needle) ||
+        (queue.description ?? '').toLowerCase().includes(needle) ||
         cohortName.toLowerCase().includes(needle)
       const matchesCohort = cohortFilter === 'all' || queue.cohortId === cohortFilter
+      const isHistory = !queue.isOpen || (queue.queueDate ? queue.queueDate < today : false)
       const matchesTab =
-        tab === 'all' || (tab === 'open' ? queue.isOpen : activeTicket?.queueId === queue.id)
+        tab === 'all'
+          ? true
+          : tab === 'open'
+            ? queue.isOpen && (!queue.queueDate || queue.queueDate === today)
+            : tab === 'joined'
+              ? activeTicket?.queueId === queue.id
+              : isHistory
       return matchesSearch && matchesCohort && matchesTab
     })
-  }, [queues, cohorts, q, cohortFilter, tab, activeTicket])
+  }, [queues, cohorts, q, cohortFilter, tab, activeTicket, today])
 
   const submitQueue = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (form.name.trim().length < 3) {
-      setFormError('Give the queue a name of at least 3 characters.')
-      return
-    }
-    await addQueue({
-      name: form.name.trim(),
-      description: form.description.trim() || 'No description yet.',
-      capacity: Math.max(1, Number(form.capacity) || 10),
-      avgServiceMinutes: Math.max(1, Number(form.avgServiceMinutes) || 10),
-    })
-    notify('Queue created')
-    setModalOpen(false)
-    setForm({ name: '', description: '', capacity: '20', avgServiceMinutes: '10' })
+    const name = form.name.trim() || 'General Queue'
+    const capacity = Math.max(1, Number(form.capacity) || 20)
     setFormError(null)
+    try {
+      await addQueue({
+        name,
+        description: form.recurring ? 'Recurring daily queue' : 'Queue',
+        capacity,
+        avgServiceMinutes: 6,
+        recurring: form.recurring,
+      })
+      notify('Queue created')
+      setModalOpen(false)
+      setForm({ name: '', capacity: '20', recurring: false })
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to create queue')
+    }
   }
 
   const tabs: Array<{ id: Tab; label: string; count: number }> = [
-    { id: 'all', label: 'All queues', count: queues.length },
-    { id: 'open', label: 'Open', count: queues.filter((queue) => queue.isOpen).length },
+    { id: 'all', label: 'All', count: queues.length },
+    { id: 'open', label: "Today's open", count: queues.filter((q) => q.isOpen && (!q.queueDate || q.queueDate === today)).length },
     { id: 'joined', label: 'Joined', count: activeTicket ? 1 : 0 },
+    { id: 'history', label: 'History', count: queues.filter((q) => !q.isOpen || (q.queueDate ? q.queueDate < today : false)).length },
   ]
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Queues"
-        description="Browse every line across your cohorts — join a queue with a code or QR scan."
+        description="Join today's active queues or manage recurring daily queues."
         actions={
           canManage ? (
             <Button leftIcon={<IconPlus className="h-4 w-4" />} onClick={() => setModalOpen(true)}>
@@ -139,19 +150,6 @@ export function QueuesPage() {
               aria-label="Search queues"
             />
           </div>
-          <select
-            value={cohortFilter}
-            onChange={(event) => update('cohort', event.target.value)}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
-            aria-label="Filter by cohort"
-          >
-            <option value="all">All cohorts</option>
-            {cohorts.map((cohort) => (
-              <option key={cohort.id} value={cohort.id}>
-                {cohort.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -161,7 +159,7 @@ export function QueuesPage() {
             <QueueCard
               key={queue.id}
               queue={queue}
-              cohortName={cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? 'Cohort'}
+              cohortName={queue.queueDate ? `Date: ${queue.queueDate}` : (cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? 'Queue')}
               joined={activeTicket?.queueId === queue.id}
             />
           ))}
@@ -170,8 +168,8 @@ export function QueuesPage() {
         <Card>
           <EmptyState
             icon={<IconQueue className="h-5 w-5" />}
-            title="No queues match your filters"
-            description="Try a different search term or cohort."
+            title="No queues found"
+            description="Try a different search or create a new queue."
             action={
               <Button variant="outline" size="sm" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
                 Clear filters
@@ -185,7 +183,7 @@ export function QueuesPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Create a queue"
-        description="Queues can be opened or closed at any time."
+        description="Create today's queue instance. Recurring queues create a fresh open instance each day with the same name."
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
@@ -199,35 +197,27 @@ export function QueuesPage() {
           <Input
             label="Queue name"
             name="queue-name"
-            placeholder="e.g. Mentor Office Hours"
+            placeholder="General Queue"
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
           />
-          <Textarea
-            label="Description"
-            name="queue-description"
-            placeholder="What is this queue for?"
-            value={form.description}
-            onChange={(event) => setForm({ ...form, description: event.target.value })}
+          <Input
+            label="Max capacity"
+            name="queue-capacity"
+            type="number"
+            min={1}
+            value={form.capacity}
+            onChange={(event) => setForm({ ...form, capacity: event.target.value })}
           />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Capacity"
-              name="queue-capacity"
-              type="number"
-              min={1}
-              value={form.capacity}
-              onChange={(event) => setForm({ ...form, capacity: event.target.value })}
+          <label className="flex items-center gap-2.5 text-[13px] text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={form.recurring}
+              onChange={(e) => setForm({ ...form, recurring: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 text-brand-600"
             />
-            <Input
-              label="Avg service (min)"
-              name="queue-avg"
-              type="number"
-              min={1}
-              value={form.avgServiceMinutes}
-              onChange={(event) => setForm({ ...form, avgServiceMinutes: event.target.value })}
-            />
-          </div>
+            Use every day / frequently used (recurring daily)
+          </label>
           {formError ? (
             <p className="text-[13px] font-medium text-rose-600 dark:text-rose-400">{formError}</p>
           ) : null}

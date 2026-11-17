@@ -19,6 +19,8 @@ function mapLoginResponseToUser(response: LoginResponse, userIdentifier: string)
     role: response.role as Role,
     emailVerified: true,
     createdAt: new Date().toISOString(),
+    profilePictureUrl: response.profilePictureUrl ?? undefined,
+    avatar: response.profilePictureUrl ?? undefined,
   }
 }
 
@@ -46,6 +48,7 @@ interface AuthState {
   refreshToken: () => Promise<void>
   updatePassword: (oldPassword: string, newPassword: string) => Promise<void>
   updateProfile: (patch: Partial<Pick<User, 'name'>>) => void
+  setProfilePicture: (url: string | null) => void
   logout: () => Promise<void>
   clearError: () => void
   fetchUserProfile: () => Promise<void>
@@ -205,6 +208,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = get().user
     if (!user) return
     const next = { ...user, ...patch }
+    saveJSON(USER_KEY, next)
+    set({ user: next })
+  },
+
+  setProfilePicture: (url: string | null) => {
+    const user = get().user
+    if (!user) return
+    const next = { ...user, profilePictureUrl: url, avatar: url ?? undefined }
     saveJSON(USER_KEY, next)
     set({ user: next })
   },
