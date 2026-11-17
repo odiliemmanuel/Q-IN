@@ -143,13 +143,11 @@ export function AuthLayout({
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-[400px] text-center text-[11px] text-slate-400 dark:text-slate-500">
-          <Link to="/" className="hover:text-slate-600 dark:hover:text-slate-300">
-            Q-In demo workspace
-          </Link>
-          <span className="mx-2">·</span>
-          <span>No backend required</span>
-        </div>
+          <div className="mx-auto w-full max-w-[400px] text-center text-[11px] text-slate-400 dark:text-slate-500">
+            <Link to="/" className="hover:text-slate-600 dark:hover:text-slate-300">
+              Q-In
+            </Link>
+          </div>
       </main>
     </div>
   )

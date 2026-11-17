@@ -11,11 +11,10 @@ import {
   Input,
   Toggle,
 } from '../components/ui'
-import { IconCamera, IconLayers, IconLogout, IconMoon, IconSun } from '../components/icons'
+import { IconCamera, IconLogout, IconMoon, IconSun } from '../components/icons'
 import { cn, roleLabel } from '../lib/utils'
 import { loadJSON, saveJSON } from '../lib/persist'
 import { useAuthStore } from '../stores/auth'
-import { useQueueStore } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 import { uploadProfilePicture, setCachedProfilePictureUrl } from '../lib/api'
 
@@ -27,7 +26,6 @@ export function SettingsPage() {
   const theme = useUiStore((state) => state.theme)
   const setTheme = useUiStore((state) => state.setTheme)
   const notify = useUiStore((state) => state.notify)
-  const resetDemoData = useQueueStore((state) => state.resetDemoData)
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -227,17 +225,6 @@ export function SettingsPage() {
                 }}
               >
                 Sign out
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-slate-600 dark:text-slate-300"
-                leftIcon={<IconLayers className="h-4 w-4" />}
-                onClick={() => {
-                  resetDemoData()
-                  notify('Demo data reset', 'info')
-                }}
-              >
-                Reset demo data
               </Button>
             </CardBody>
           </Card>

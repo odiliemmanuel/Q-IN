@@ -29,10 +29,10 @@ interface NavItem {
 const WORKSPACE: NavItem[] = [
   { to: '/app/dashboard', label: 'Overview', icon: IconGrid },
   { to: '/app/queues', label: 'Queues', icon: IconQueue },
-  { to: '/app/cohorts', label: 'Cohorts', icon: IconUsers },
 ]
 
 const MANAGE: NavItem[] = [
+  { to: '/app/cohorts', label: 'Cohorts', icon: IconUsers, roles: ['ADMIN', 'SUPER_ADMIN'] },
   { to: '/app/admin', label: 'Admin console', icon: IconShield, roles: ['ADMIN', 'SUPER_ADMIN'] },
   { to: '/app/super-admin', label: 'Platform', icon: IconSparkles, roles: ['SUPER_ADMIN'] },
 ]
@@ -84,9 +84,9 @@ export function Sidebar() {
 
         <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-900/60">
           <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Demo workspace
-            </p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Workspace
+              </p>
           </div>
           <p className="mt-1.5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
             {waiting} people waiting across {queues.filter((queue) => queue.isOpen).length} open queues.

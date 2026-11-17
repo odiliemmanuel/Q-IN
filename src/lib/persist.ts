@@ -18,6 +18,15 @@ export function debouncedSaveJSON(key: string, value: unknown, delayMs = 150): v
   }, delayMs)
 }
 
+export function flushPendingWrites(): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  pendingWrites.forEach((write) => write())
+  pendingWrites.clear()
+}
+
 export function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)

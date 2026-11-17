@@ -153,7 +153,6 @@ interface QueueState extends PersistedData {
   updateQueueCapacity: (queueId: string, capacity: number) => Promise<void>
   deleteQueue: (queueId: string) => Promise<void>
   closeQueue: (queueId: string) => Promise<void>
-  resetDemoData: () => void
 }
 
 function persist(state: PersistedData) {
@@ -587,11 +586,6 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const nextTicket = activeTicket?.queueId === queueId ? null : activeTicket
     persist({ cohorts, queues: nextQueues, activeTicket: nextTicket })
     set({ queues: nextQueues, activeTicket: nextTicket })
-  },
-
-  resetDemoData: () => {
-    persist(emptySeed)
-    set({ ...emptySeed })
   },
 }))
 

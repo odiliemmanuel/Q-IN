@@ -14,3 +14,17 @@ createRoot(container).render(
     <App />
   </React.StrictMode>,
 )
+
+// Register service worker for PWA offline support
+if ('serviceWorker' in navigator) {
+  void navigator.serviceWorker
+    .register('/sw.js', { scope: '/' })
+    .then((registration) => {
+      // eslint-disable-next-line no-console
+      console.log('Service worker registered:', registration.scope)
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error('Service worker registration failed:', error)
+    })
+}

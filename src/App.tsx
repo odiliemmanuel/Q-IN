@@ -61,7 +61,14 @@ export default function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="queues" element={<QueuesPage />} />
           <Route path="queues/:queueId" element={<QueueDetailPage />} />
-          <Route path="cohorts" element={<CohortsPage />} />
+          <Route
+            path="cohorts"
+            element={
+              <ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']}>
+                <CohortsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="admin"
             element={
