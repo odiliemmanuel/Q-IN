@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Role, User } from '../lib/types'
 import { loadJSON, saveJSON } from '../lib/persist'
 import { terminateSession } from '../session/sessionTermination'
+import { tokenStorage } from '../auth/tokenStorage'
 import { authApi, type LoginResponse, type RegisterResponse } from '../api'
 
 const USER_KEY = 'qin:user'
@@ -77,6 +78,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       saveJSON(USER_KEY, user)
       set({ user, loading: false, error: null })
 
+      // Persist auth tokens so subsequent API requests are authenticated
+      tokenStorage.set(response.accessToken, response.refreshToken, response.userId)
+
       await get().fetchUserProfile()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed. Please try again.'
@@ -133,6 +137,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = mapLoginResponseToUser(response, email)
       saveJSON(USER_KEY, user)
       set({ user, loading: false, error: null })
+
+      tokenStorage.set(response.accessToken, response.refreshToken, response.userId)
+
       await get().fetchUserProfile()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Email verification failed.'
