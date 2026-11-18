@@ -1,6 +1,5 @@
 import { API_BASE_URL, API_ENDPOINTS } from './config'
 import { tokenStorage } from '../auth/tokenStorage'
-import { terminateSession } from '../session/sessionTermination'
 
 export interface ApiResponse<T = unknown> {
   success: boolean
@@ -128,11 +127,10 @@ async function request<T>(
     if (newToken) {
       return request<T>(endpoint, options, requiresAuth, true)
     }
-    // Only terminate when there is no refresh token at all (genuinely logged out).
-    // A transient refresh/network error should not bounce the user.
+    // Only clear tokens when there is no refresh token (genuinely logged out).
+    // A transient refresh/network error throws without bouncing.
     if (!hasRefreshToken) {
       tokenStorage.clear()
-      void terminateSession()
     }
     throw new ApiError('Session expired. Please log in again.', 401)
   }
@@ -197,7 +195,6 @@ export const api = {
         }
         if (!hasRefreshToken) {
           tokenStorage.clear()
-          void terminateSession()
         }
         throw new ApiError('Session expired. Please log in again.', 401)
       }

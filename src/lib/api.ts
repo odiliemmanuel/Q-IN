@@ -157,22 +157,20 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
         return data
       } catch (refreshError) {
-        // Only terminate if the refresh token itself is rejected (401).
+        // Only clear tokens if the refresh token itself is rejected (401).
         // Transient/network errors on refresh must not bounce the user.
         if (refreshError instanceof ApiError && refreshError.status === 401) {
           tokenStorage.clear()
-          void terminateSession()
         }
         throw refreshError
       }
     }
 
-    // 401 with no refresh possible → genuinely logged out, terminate session.
+    // 401 with no refresh possible → clear tokens, throw without bouncing.
     // 403 (forbidden/role mismatch) and other errors → throw without bouncing.
-    // Callers are responsible for surfacing access-denied / error messages.
+    // Route guards and callers are responsible for redirecting / surfacing messages.
     if (isUnauthorized) {
       tokenStorage.clear()
-      void terminateSession()
     }
     throw error
   }
