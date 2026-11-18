@@ -91,10 +91,9 @@ async function refreshAccessToken(): Promise<string | null> {
       return data.data.accessToken
     }
   } catch {
-    // Ignore refresh errors
+    // Ignore refresh errors — tokens are preserved; callers handle the failure.
   }
 
-  tokenStorage.clear()
   return null
 }
 
@@ -122,16 +121,12 @@ async function request<T>(
   })
 
   if (response.status === 401 && requiresAuth && !isRetry) {
-    const hasRefreshToken = await getRefreshToken()
     const newToken = await refreshAccessToken()
     if (newToken) {
       return request<T>(endpoint, options, requiresAuth, true)
     }
-    // Only clear tokens when there is no refresh token (genuinely logged out).
-    // A transient refresh/network error throws without bouncing.
-    if (!hasRefreshToken) {
-      tokenStorage.clear()
-    }
+    // Do not clear tokens here — only explicit logout terminates the session.
+    // A 401 throws; callers decide whether to surface an error or terminate.
     throw new ApiError('Session expired. Please log in again.', 401)
   }
 

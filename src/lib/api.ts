@@ -157,21 +157,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
         return data
       } catch (refreshError) {
-        // Only clear tokens if the refresh token itself is rejected (401).
-        // Transient/network errors on refresh must not bounce the user.
-        if (refreshError instanceof ApiError && refreshError.status === 401) {
-          tokenStorage.clear()
-        }
+        // Transient/network errors on refresh must not bounce the user or clear tokens.
+        // Only explicit logout clears the session.
         throw refreshError
       }
     }
 
-    // 401 with no refresh possible → clear tokens, throw without bouncing.
-    // 403 (forbidden/role mismatch) and other errors → throw without bouncing.
+    // 401 and other errors: throw without clearing tokens or bouncing.
     // Route guards and callers are responsible for redirecting / surfacing messages.
-    if (isUnauthorized) {
-      tokenStorage.clear()
-    }
     throw error
   }
 }
