@@ -145,28 +145,32 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   try {
     return await promise
   } catch (error) {
+    const isUnauthorized = error instanceof ApiError && error.status === 401
     const canRefresh =
       options.allowRefresh !== false &&
       tokens?.refreshToken &&
-      error instanceof ApiError &&
-      error.status === 401
-    if (!canRefresh) {
-      if (error instanceof ApiError && error.status === 401) {
+      isUnauthorized
+
+    if (canRefresh) {
+      try {
+        const refreshed = await refreshAccessToken(tokens.refreshToken)
+        const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
+        return data
+      } catch (refreshError) {
         tokenStorage.clear()
         void terminateSession()
+        throw refreshError
       }
-      throw error
     }
 
-    try {
-      const refreshed = await refreshAccessToken(tokens.refreshToken)
-      const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
-      return data
-    } catch (refreshError) {
+    // 401 with no refresh possible → genuinely logged out, terminate session.
+    // 403 (forbidden/role mismatch) and other errors → throw without bouncing.
+    // Callers are responsible for surfacing access-denied / error messages.
+    if (isUnauthorized) {
       tokenStorage.clear()
       void terminateSession()
-      throw refreshError
     }
+    throw error
   }
 }
 
