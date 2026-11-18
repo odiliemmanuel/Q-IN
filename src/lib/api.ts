@@ -157,8 +157,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         const { data } = await requestOnce<T>(path, options, refreshed.accessToken)
         return data
       } catch (refreshError) {
-        tokenStorage.clear()
-        void terminateSession()
+        // Only terminate if the refresh token itself is rejected (401).
+        // Transient/network errors on refresh must not bounce the user.
+        if (refreshError instanceof ApiError && refreshError.status === 401) {
+          tokenStorage.clear()
+          void terminateSession()
+        }
         throw refreshError
       }
     }
