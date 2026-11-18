@@ -77,7 +77,10 @@ interface RequestOptions {
 async function requestOnce<T>(path: string, options: RequestOptions, token: string | null): Promise<{ data: T; envelope: ApiEnvelope<T> }> {
   const { method = 'GET', body, params, auth = true } = options
 
-  const url = new URL(path, API_BASE)
+  // Build the full URL. When API_BASE is empty (no VITE_API_URL set), fall back
+  // to the current origin so relative paths go through the Vite proxy / Vercel
+  // rewrite and avoid CORS issues.
+  const url = new URL(path, API_BASE || window.location.origin)
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined) url.searchParams.set(key, value)
