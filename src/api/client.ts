@@ -123,12 +123,17 @@ async function request<T>(
   })
 
   if (response.status === 401 && requiresAuth && !isRetry) {
+    const hasRefreshToken = await getRefreshToken()
     const newToken = await refreshAccessToken()
     if (newToken) {
       return request<T>(endpoint, options, requiresAuth, true)
     }
-    tokenStorage.clear()
-    void terminateSession()
+    // Only terminate when there is no refresh token at all (genuinely logged out).
+    // A transient refresh/network error should not bounce the user.
+    if (!hasRefreshToken) {
+      tokenStorage.clear()
+      void terminateSession()
+    }
     throw new ApiError('Session expired. Please log in again.', 401)
   }
 
@@ -185,12 +190,15 @@ export const api = {
       })
 
       if (response.status === 401 && requiresAuth && !retry) {
+        const hasRefreshToken = await getRefreshToken()
         const newToken = await refreshAccessToken()
         if (newToken) {
           return doUpload(true)
         }
-        tokenStorage.clear()
-        void terminateSession()
+        if (!hasRefreshToken) {
+          tokenStorage.clear()
+          void terminateSession()
+        }
         throw new ApiError('Session expired. Please log in again.', 401)
       }
 
