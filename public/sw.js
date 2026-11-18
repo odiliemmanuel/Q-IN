@@ -47,6 +47,22 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // HTML documents: network first so a fresh deploy always serves the latest shell
+  // (prevents blank screen from a stale cached index.html after deploy).
+  const accept = request.headers.get('accept') || ''
+  if (request.mode === 'navigate' || accept.includes('text/html')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          return response
+        })
+        .catch(() => caches.match(request)),
+    )
+    return
+  }
+
   // Static assets: cache first, then network
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request)),
