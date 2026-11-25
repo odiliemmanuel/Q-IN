@@ -16,7 +16,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL ?? 'https://queueni.fly.dev',
+        target: process.env.VITE_API_URL ?? 'https://queueni.onrender.com',
         changeOrigin: true,
         secure: true,
       },
