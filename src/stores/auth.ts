@@ -34,11 +34,11 @@ interface AuthState {
   register: (data: {
     firstName: string
     lastName: string
-    userName: string
+    userName?: string | null
     pin: string
     email: string
-    phoneNumber: string
-    whatsappNumber: string
+    phoneNumber?: string | null
+    whatsappNumber?: string | null
     gender: 'MALE' | 'FEMALE'
     cohortId: string
   }) => Promise<void>

@@ -95,11 +95,11 @@ export function RegisterPage() {
       await register({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, ''),
+        userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') || null,
         pin,
         email: email.trim().toLowerCase(),
-        phoneNumber: '',
-        whatsappNumber: '',
+        phoneNumber: null,
+        whatsappNumber: null,
         gender: (gender || 'MALE') as Gender,
         cohortId,
       })

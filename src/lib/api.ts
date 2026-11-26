@@ -196,12 +196,12 @@ export type Gender = 'MALE' | 'FEMALE'
 export interface RegisterPayload {
   firstName: string
   lastName: string
-  userName: string
-  /** Exactly 6 digits. */
+  userName?: string | null
+  /** Exactly 4 digits. */
   pin: string
   email: string
-  phoneNumber?: string
-  whatsappNumber?: string
+  phoneNumber?: string | null
+  whatsappNumber?: string | null
   gender: Gender
   cohortId: string
 }
