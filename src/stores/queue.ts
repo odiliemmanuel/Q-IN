@@ -407,6 +407,28 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const current = queues.find((q) => q.id === queueId)
     if (!current) return
 
+    // Opening a queue: create a fresh backend instance so members see it as open.
+    if (!current.isOpen && loadTokens()) {
+      try {
+        await createQueueOnBackend({
+          maxCapacity: current.capacity,
+          name: current.name,
+          recurring: current.recurring,
+        })
+        await get().hydrateFromBackend()
+        useNotificationStore.getState().push('Queue opened', `${current.name} is now accepting people.`)
+        return
+      } catch (error) {
+        if (error instanceof ApiError && error.status >= 400) {
+          // If a queue with this name already exists for today, just re-hydrate.
+          await get().hydrateFromBackend().catch(() => {})
+          useNotificationStore.getState().push('Queue opened', `${current.name} is now accepting people.`)
+          return
+        }
+        // network error -> fall through to local toggle
+      }
+    }
+
     // Closing via backend endpoint for today's instance (spec)
     if (current.isOpen && loadTokens()) {
       try {
