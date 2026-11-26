@@ -223,7 +223,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       set({ queues: mapped, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
       persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
     } catch (error) {
-      console.warn('hydrateFromBackend failed:', error)
+      console.error('[hydrateFromBackend] Failed to sync queues:', error)
       // Backend unreachable — keep whatever local state exists.
     }
   },
