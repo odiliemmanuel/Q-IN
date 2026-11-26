@@ -71,7 +71,13 @@ export function AdminPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteQueueId, setDeleteQueueId] = useState<string | null>(null)
 
-  useEffect(() => { void hydrateFromBackend() }, [hydrateFromBackend])
+  useEffect(() => {
+    const hydrate = () => void hydrateFromBackend()
+    hydrate()
+    const id = window.setInterval(hydrate, 15000)
+    window.addEventListener('focus', hydrate)
+    return () => { window.clearInterval(id); window.removeEventListener('focus', hydrate) }
+  }, [hydrateFromBackend])
 
   useEffect(() => {
     webhooksApi.getAll()
