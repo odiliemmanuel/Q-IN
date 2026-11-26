@@ -117,10 +117,19 @@ async function requestOnce<T>(path: string, options: RequestOptions, token: stri
     envelope = { success: response.ok, message: response.statusText || 'Request failed', data: null }
   }
 
+  // Handle responses that don't use the standard { success, message, data } envelope
+  // (e.g., /api/queue/all returns { queues, message, numberOfQueues } directly).
+  if (envelope.success === undefined) {
+    envelope.success = response.ok
+  }
+
   if (!response.ok || !envelope.success) {
     throw new ApiError(envelope.message || `Request failed (${response.status})`, response.status)
   }
-  return { data: envelope.data as T, envelope }
+
+  // If there's no `data` field, the entire response body is the data.
+  const data = (envelope.data !== undefined ? envelope.data : envelope) as T
+  return { data, envelope }
 }
 
 /** Authenticated request with a single automatic refresh-token retry on 401. */
@@ -458,7 +467,15 @@ export interface BackendQueueEntry {
 }
 
 export async function fetchAllQueues(): Promise<{ queues: BackendQueue[]; message: string; numberOfQueues: number | null }> {
-  return request('/api/queue/all')
+  const result = await request<unknown>('/api/queue/all')
+  // Handle both wrapped ({ queues, ... }) and direct array responses.
+  if (Array.isArray(result)) {
+    return { queues: result as BackendQueue[], message: '', numberOfQueues: result.length }
+  }
+  if (result && typeof result === 'object' && 'queues' in result) {
+    return result as { queues: BackendQueue[]; message: string; numberOfQueues: number | null }
+  }
+  return { queues: [], message: '', numberOfQueues: null }
 }
 
 /** Join using the current 6-digit access code (TOTP, rotates every 30s). */

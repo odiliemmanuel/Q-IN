@@ -205,7 +205,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   hydrateFromBackend: async () => {
     if (!loadTokens()) return
     try {
-      const { queues: backendQueues } = await fetchAllQueues()
+      const result = await fetchAllQueues()
+      const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
       const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
 
       const backendCohorts = await fetchCohorts().catch(() => [])
@@ -220,11 +221,14 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       const current = get().queues
       const merged = [...mapped]
       for (const local of current) {
+        // Only keep local queues that don't exist on the backend (offline-created).
+        // Skip local queues that were already synced to the backend.
         if (!merged.some((item) => item.id === local.id)) merged.push(local)
       }
       set({ queues: merged, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
       persist({ cohorts: get().cohorts, queues: merged, activeTicket: get().activeTicket })
-    } catch {
+    } catch (error) {
+      console.warn('hydrateFromBackend failed:', error)
       // Backend unreachable — keep whatever local state exists.
     }
   },
@@ -529,8 +533,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       } catch (error) {
         if (error instanceof ApiError && error.status >= 400) {
           useNotificationStore.getState().push('Backend queue not created', error.message)
+          // Don't create a local fallback — the backend rejected the request.
+          // Only fall back to local creation on network errors (backend unreachable).
+          return
         }
       }
+    }
+
+    // If backend rejected the request, don't create a local queue.
+    if (!created && loadTokens()) {
+      return
     }
 
     const cohortId = input.cohortId ?? cohorts[0]?.id ?? `cohort_${uid()}`
@@ -553,7 +565,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     nextQueue.cohortId = cohortId
 
     const nextQueues: Queue[] = [nextQueue, ...queues]
-    persist({ cohorts, queues: nextQueues, activeTicket })
+    persist({ cohorts: cohorts, queues: nextQueues, activeTicket })
     set({ queues: nextQueues })
   },
 
