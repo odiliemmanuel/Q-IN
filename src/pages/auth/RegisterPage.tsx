@@ -24,6 +24,9 @@ export function RegisterPage() {
   const [gender, setGender] = useState<Gender | ''>('')
   const [cohortId, setCohortId] = useState('')
   const [cohorts, setCohorts] = useState<BackendCohort[]>([])
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [sameAsPhone, setSameAsPhone] = useState(true)
   const [cohortsError, setCohortsError] = useState<string | null>(null)
   const [agreed, setAgreed] = useState(true)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -98,8 +101,8 @@ export function RegisterPage() {
         userName: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') || null,
         pin,
         email: email.trim().toLowerCase(),
-        phoneNumber: null,
-        whatsappNumber: null,
+        phoneNumber: phoneNumber.trim() || null,
+        whatsappNumber: (sameAsPhone ? phoneNumber.trim() : whatsappNumber.trim()) || null,
         gender: (gender || 'MALE') as Gender,
         cohortId,
       })
@@ -162,6 +165,41 @@ export function RegisterPage() {
           onChange={(event) => setEmail(event.target.value)}
           required
         />
+
+        <Input
+          label="Phone number"
+          name="phoneNumber"
+          type="tel"
+          autoComplete="tel"
+          placeholder="+234..."
+          value={phoneNumber}
+          onChange={(event) => setPhoneNumber(event.target.value)}
+        />
+
+        <label className="flex items-center gap-2.5 text-[13px] text-slate-600 dark:text-slate-400">
+          <input
+            type="checkbox"
+            checked={sameAsPhone}
+            onChange={(event) => {
+              setSameAsPhone(event.target.checked)
+              if (event.target.checked) setWhatsappNumber(phoneNumber)
+            }}
+            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800"
+          />
+          <span>WhatsApp number is the same as phone number</span>
+        </label>
+
+        {!sameAsPhone ? (
+          <Input
+            label="WhatsApp number"
+            name="whatsappNumber"
+            type="tel"
+            autoComplete="tel"
+            placeholder="+234..."
+            value={whatsappNumber}
+            onChange={(event) => setWhatsappNumber(event.target.value)}
+          />
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3">
           <Input
