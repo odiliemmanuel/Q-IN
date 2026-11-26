@@ -108,7 +108,9 @@ function mapBackendUserToEntry(user: BackendQueueUser): QueueEntry {
 /** Map a backend queue to the frontend Queue shape. */
 function mapBackendQueue(backend: BackendQueue, index = 0, users?: BackendQueueUser[]): Queue {
   const name = backend.name?.trim() || `Queue ${index + 1}`
-  const queueDate = backend.queueDate ?? (backend.createdAt ? backend.createdAt.slice(0, 10) : null)
+  // Normalize queueDate to date-only (YYYY-MM-DD) to match todayISO() comparisons.
+  const rawDate = backend.queueDate ?? (backend.createdAt ? backend.createdAt.slice(0, 10) : null)
+  const queueDate = rawDate ? rawDate.slice(0, 10) : null
   return {
     id: backend.id,
     cohortId: 'cohort_live',
@@ -411,6 +413,31 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { queues, cohorts, activeTicket } = get()
     const current = queues.find((q) => q.id === queueId)
     if (!current) return
+
+    // Opening a queue: create a fresh backend instance so members see it as open.
+    if (!current.isOpen && loadTokens()) {
+      try {
+        const backend = await createQueueOnBackend({
+          maxCapacity: current.capacity,
+          name: current.name,
+          recurring: current.recurring,
+        }) as any
+        if (backend && backend.id) {
+          const created = mapBackendQueue(backend as BackendQueue, queues.length)
+          const nextQueues = queues.map((item) => (item.id === queueId ? created : item))
+          persist({ cohorts, queues: nextQueues, activeTicket })
+          set({ queues: nextQueues })
+          useNotificationStore.getState().push('Queue opened', `${created.name} is now accepting people.`)
+          return
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status >= 400) {
+          useNotificationStore.getState().push('Queue not opened', error.message)
+          return
+        }
+        // network error -> fall through to local toggle
+      }
+    }
 
     // Closing via backend endpoint for today's instance (spec)
     if (current.isOpen && loadTokens()) {
