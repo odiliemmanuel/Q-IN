@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
@@ -35,6 +36,9 @@ export function QueuesPage() {
 
   const canManage = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
   const today = new Date().toISOString().slice(0, 10)
+  const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
+
+  useEffect(() => { void hydrateFromBackend() }, [hydrateFromBackend])
 
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params)
