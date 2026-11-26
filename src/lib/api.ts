@@ -188,7 +188,7 @@ export interface BackendLoginResponse {
 export interface BackendRegisterResponse {
   userId: string
   message: string
-  isSuccessFull: boolean
+  successFull: boolean
 }
 
 export type Gender = 'MALE' | 'FEMALE'
