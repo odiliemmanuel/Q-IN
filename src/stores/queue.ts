@@ -220,15 +220,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         createdAt: new Date().toISOString(),
       }))
 
-      const current = get().queues
-      const merged = [...mapped]
-      for (const local of current) {
-        // Only keep local queues that don't exist on the backend (offline-created).
-        // Skip local queues that were already synced to the backend.
-        if (!merged.some((item) => item.id === local.id)) merged.push(local)
-      }
-      set({ queues: merged, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
-      persist({ cohorts: get().cohorts, queues: merged, activeTicket: get().activeTicket })
+      set({ queues: mapped, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
+      persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
     } catch (error) {
       console.warn('hydrateFromBackend failed:', error)
       // Backend unreachable — keep whatever local state exists.
