@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { PageHeader } from '../components/PageHeader'
@@ -22,6 +22,7 @@ import {
   IconPlay,
   IconQueue,
   IconUsers,
+  IconActivity,
 } from '../components/icons'
 import { cn, formatTime, formatWait, joinUrl, timeAgo, waitMinutes } from '../lib/utils'
 import { useAuthStore } from '../stores/auth'
@@ -33,6 +34,7 @@ import {
 } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
 import { ServiceTimerDisplay } from '../components/queue/ServiceTimerDisplay'
+import { fetchTotpCode } from '../lib/api'
 
 export function QueueDetailPage() {
   const { queueId } = useParams<{ queueId: string }>()
@@ -52,9 +54,12 @@ export function QueueDetailPage() {
 
   const [showQr, setShowQr] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [totpCode, setTotpCode] = useState<string>('')
+  const [expiresIn, setExpiresIn] = useState<number>(0)
   const [gateCode, setGateCode] = useState('')
   const [gateError, setGateError] = useState<string | null>(null)
   const [gateBusy, setGateBusy] = useState(false)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const queue = queues.find((item) => item.id === queueId)
 
@@ -98,14 +103,46 @@ export function QueueDetailPage() {
   // who is on the line — members must join first.
   const canViewLine = isAdmin || isMine
 
+  // TOTP code refresh function
+  const refreshTotpCode = async () => {
+    if (!queue) return
+    try {
+      const data = await fetchTotpCode(queue.id)
+      setTotpCode(data.code)
+      setExpiresIn(data.expiresIn)
+    } catch (error) {
+      console.error('Failed to fetch TOTP code:', error)
+    }
+  }
+
+  // Countdown and auto-refresh
+  useEffect(() => {
+    if (!showQr) return
+    const interval = setInterval(() => {
+      setExpiresIn(prev => {
+        const next = prev - 1
+        if (next <= 0) {
+          refreshTotpCode()
+        }
+        return Math.max(0, next)
+      })
+    }, 1000)
+    countdownRef.current = interval
+    return () => clearInterval(interval)
+  }, [showQr])
+
+  // Initial fetch when QR modal opens
   const openQr = async () => {
-    const url = await QRCode.toDataURL(joinUrl(queue.joinCode), {
-      width: 320,
-      margin: 1,
-      color: { dark: '#0f172a', light: '#ffffff' },
-    })
-    setQrDataUrl(url)
     setShowQr(true)
+    await refreshTotpCode()
+    if (totpCode) {
+      const url = await QRCode.toDataURL(joinUrl(totpCode), {
+        width: 320,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+      })
+      setQrDataUrl(url)
+    }
   }
 
   const joinWithGateCode = async (event: React.FormEvent) => {
@@ -457,21 +494,35 @@ export function QueueDetailPage() {
         open={showQr}
         onClose={() => setShowQr(false)}
         title="Entry QR code"
-        description="Members scan this to join the queue — or they can enter the code."
+        description="Members scan this to join the queue — or they can enter the 6-digit code below. Code refreshes every 30 seconds."
       >
         <div className="flex flex-col items-center gap-4">
           {qrDataUrl ? (
             <img src={qrDataUrl} alt="Queue entry QR code" className="rounded-2xl border border-slate-200 dark:border-slate-700" />
           ) : null}
           <div className="text-center">
-            <p className="font-mono text-lg font-bold tracking-widest text-slate-900 dark:text-white">
-              {queue.joinCode}
-            </p>
-            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Queue code</p>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <p className="font-mono text-xl font-bold tracking-widest text-slate-900 dark:text-white">
+                {totpCode || 'Loading...'}
+              </p>
+              {showQr && (
+                <span className="flex items-center gap-1 text-[11px] font-mono text-brand-600 dark:text-brand-400">
+                  <IconActivity className="h-3.5 w-3.5 animate-spin" />
+                  <span>Refreshes in {expiresIn}s</span>
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">6-digit entry code</p>
           </div>
-          <Button variant="outline" onClick={() => navigator.clipboard.writeText(queue.joinCode).then(() => notify('Code copied', 'success'))}>
-            Copy code
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigator.clipboard.writeText(totpCode).then(() => notify('Code copied', 'success'))} disabled={!totpCode}>
+              Copy code
+            </Button>
+            <Button variant="outline" onClick={refreshTotpCode} disabled={!showQr}>
+              <IconActivity className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

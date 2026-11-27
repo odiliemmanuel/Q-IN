@@ -482,6 +482,18 @@ export async function fetchAllQueues(): Promise<{ queues: BackendQueue[]; messag
   return { queues: [], message: '', numberOfQueues: null }
 }
 
+/** Get today's open queues (for member dashboard). */
+export async function fetchTodayQueues(): Promise<{ queues: BackendQueue[]; message: string; numberOfQueues: number | null }> {
+  const result = await request<unknown>('/api/queue/today')
+  if (Array.isArray(result)) {
+    return { queues: result as BackendQueue[], message: '', numberOfQueues: result.length }
+  }
+  if (result && typeof result === 'object' && 'queues' in result) {
+    return result as { queues: BackendQueue[]; message: string; numberOfQueues: number | null }
+  }
+  return { queues: [], message: '', numberOfQueues: null }
+}
+
 /** Join using the current 6-digit access code (TOTP, rotates every 30s). */
 export async function enterQueue(userId: string, code: string, queueId?: string): Promise<BackendQueueEntry> {
   return request<BackendQueueEntry>(`/api/queue/${userId}/enter`, {
@@ -504,6 +516,11 @@ export async function fetchQueueUsers(queueId: string): Promise<BackendQueueUser
 
 export async function fetchQueueStats(queueId: string): Promise<string> {
   return request<string>(`/api/queue/${queueId}/stats`)
+}
+
+/** Get current TOTP code for a queue (changes every 30s). */
+export async function fetchTotpCode(queueId: string): Promise<{ code: string; expiresIn: number }> {
+  return request<{ code: string; expiresIn: number }>(`/api/queue/${queueId}/totp-code`)
 }
 
 export interface BackendCreateQueuePayload {
