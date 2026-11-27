@@ -9,6 +9,7 @@ import {
   enterQueue,
   exitQueue,
   fetchAllQueues,
+  fetchTodayQueues,
   createQueueOnBackend,
   fetchCohorts,
   closeQueue as closeQueueOnBackend,
@@ -139,6 +140,7 @@ interface QueueState extends PersistedData {
   joinByCode: (code: string, name: string, avatar?: string, queueId?: string) => Promise<JoinResult>
   leaveQueue: () => Promise<void>
   hydrateFromBackend: () => Promise<void>
+  hydrateTodayQueues: () => Promise<void>
   callNext: (queueId: string) => void
   serveEntry: (queueId: string, entryId: string) => void
   skipEntry: (queueId: string, entryId: string) => void
@@ -229,6 +231,20 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     } catch (error) {
       console.error('[hydrateFromBackend] Failed to sync queues:', error)
       // Backend unreachable — keep whatever local state exists.
+    }
+  },
+
+  hydrateTodayQueues: async () => {
+    if (!loadTokens()) return
+    try {
+      const result = await fetchTodayQueues()
+      const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
+      const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
+
+      set({ queues: mapped })
+      persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
+    } catch (error) {
+      console.error('[hydrateTodayQueues] Failed to sync today queues:', error)
     }
   },
 
