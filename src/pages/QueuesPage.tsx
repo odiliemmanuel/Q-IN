@@ -39,6 +39,7 @@ export function QueuesPage() {
   const canManage = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
   const today = new Date().toISOString().slice(0, 10)
   const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
+  const userName = user?.name
 
   useEffect(() => { void hydrateFromBackend() }, [hydrateFromBackend])
 
@@ -59,18 +60,27 @@ export function QueuesPage() {
         (queue.description ?? '').toLowerCase().includes(needle) ||
         cohortName.toLowerCase().includes(needle)
       const matchesCohort = cohortFilter === 'all' || queue.cohortId === cohortFilter
-      const isHistory = !queue.isOpen || (queue.queueDate ? queue.queueDate < today : false)
+      
+      // Check if user has history in this queue (served or skipped entries)
+      const hasHistory = userName 
+        ? queue.entries.some((entry) => 
+            entry.name === userName && (entry.status === 'SERVED' || entry.status === 'SKIPPED'))
+        : false
+      
+      const isJoined = activeTicket?.queueId === queue.id
+      const isOpenToday = queue.isOpen && (!queue.queueDate || queue.queueDate === today)
+
       const matchesTab =
         tab === 'all'
           ? true
           : tab === 'open'
-            ? queue.isOpen && (!queue.queueDate || queue.queueDate === today)
+            ? isOpenToday
             : tab === 'joined'
-              ? activeTicket?.queueId === queue.id
-              : isHistory
+              ? isJoined
+              : hasHistory
       return matchesSearch && matchesCohort && matchesTab
     })
-  }, [queues, cohorts, q, cohortFilter, tab, activeTicket, today])
+  }, [queues, cohorts, q, cohortFilter, tab, activeTicket, today, userName])
 
   const submitQueue = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -101,7 +111,7 @@ export function QueuesPage() {
     { id: 'all', label: 'All', count: queues.length },
     { id: 'open', label: "Today's open", count: queues.filter((q) => q.isOpen && (!q.queueDate || q.queueDate === today)).length },
     { id: 'joined', label: 'Joined', count: activeTicket ? 1 : 0 },
-    { id: 'history', label: 'History', count: queues.filter((q) => !q.isOpen || (q.queueDate ? q.queueDate < today : false)).length },
+    { id: 'history', label: 'History', count: userName ? queues.filter((q) => q.entries.some((e) => e.name === userName && (e.status === 'SERVED' || e.status === 'SKIPPED'))).length : 0 },
   ]
 
   return (
