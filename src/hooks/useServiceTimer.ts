@@ -23,6 +23,9 @@ export function useServiceTimer(userId: string | null, initialStatus?: ServiceTi
   const [isTimerRunning, setIsTimerRunning] = useState(initialStatus?.isTimerRunning ?? false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Don't connect if userId is empty or invalid
+  const validUserId = userId && userId.length > 0 ? userId : null
+
   const startLocalCountdown = useCallback((totalSeconds: number) => {
     stopLocalCountdown()
     let remaining = totalSeconds
@@ -44,7 +47,7 @@ export function useServiceTimer(userId: string | null, initialStatus?: ServiceTi
   }, [])
 
   useEffect(() => {
-    if (!userId) return
+    if (!validUserId) return
 
     const handleEvent = (event: ServiceTimerEvent) => {
       if (event.event === 'SERVICE_COUNTDOWN_START') {
@@ -63,7 +66,7 @@ export function useServiceTimer(userId: string | null, initialStatus?: ServiceTi
       }
     }
 
-    queueWebSocket.connect(userId, {
+    queueWebSocket.connect(validUserId, {
       onServiceTimerEvent: handleEvent,
     })
 
@@ -71,12 +74,12 @@ export function useServiceTimer(userId: string | null, initialStatus?: ServiceTi
       queueWebSocket.disconnect()
       stopLocalCountdown()
     }
-  }, [userId, startLocalCountdown, stopLocalCountdown])
+  }, [validUserId, startLocalCountdown, stopLocalCountdown])
 
   const checkOut = useCallback(async (): Promise<void> => {
-    if (!userId) return
+    if (!validUserId) return
     try {
-      await fetch(`/api/queue/${userId}/exit`, {
+      await fetch(`/api/queue/${validUserId}/exit`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       })

@@ -171,6 +171,7 @@ export function QueuesPage() {
               queue={queue}
               cohortName={queue.queueDate ? `Date: ${queue.queueDate}` : (cohorts.find((cohort) => cohort.id === queue.cohortId)?.name ?? 'Queue')}
               joined={activeTicket?.queueId === queue.id}
+              userId={user?.id}
             />
           ))}
         </div>

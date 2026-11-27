@@ -10,11 +10,13 @@ const QueueCardComponent = ({
   queue,
   cohortName,
   joined = false,
+  userId,
   className,
 }: {
   queue: Queue
   cohortName: string
   joined?: boolean
+  userId?: string
   className?: string
 }) => {
   const waiting = useMemo(() => queue.entries.filter((entry) => entry.status === 'WAITING').length, [queue.entries])
@@ -57,9 +59,9 @@ const QueueCardComponent = ({
 
       <Progress value={waiting} max={queue.capacity} className="mt-3" tone={queue.isOpen ? 'brand' : 'warning'} />
 
-      {joined && hasServiceTimer && (
+      {joined && hasServiceTimer && userId && (
         <div className="mt-3">
-          <ServiceTimerDisplay userId="current" queueId={queue.id} />
+          <ServiceTimerDisplay userId={userId} queueId={queue.id} />
         </div>
       )}
 
