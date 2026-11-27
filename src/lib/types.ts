@@ -40,6 +40,10 @@ export interface Queue {
   recurring?: boolean
   queueDate?: string | null
   avgServiceMinutes: number
+  /** Service time in minutes (for service timer). */
+  serviceTimeMinutes?: number
+  /** Grace period in minutes (for service timer). */
+  gracePeriodMinutes?: number
   /** Short code members enter (or scan as a QR) to join. */
   joinCode: string
   entries: QueueEntry[]

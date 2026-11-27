@@ -436,6 +436,10 @@ export interface BackendQueue {
   createdDate?: string
   queueNumber?: number | null
   closureDate?: string | null
+  /** Service time in minutes (new API). */
+  serviceTimeMinutes?: number
+  /** Grace period in minutes (new API). */
+  gracePeriodMinutes?: number
 }
 
 export interface BackendQueueUser {
@@ -506,10 +510,37 @@ export interface BackendCreateQueuePayload {
   maxCapacity: number
   name?: string
   recurring?: boolean
+  /** Service time in minutes (new API). */
+  serviceTimeMinutes?: number
+  /** Grace period in minutes (new API). */
+  gracePeriodMinutes?: number
 }
 
 export async function createQueueOnBackend(payload: BackendCreateQueuePayload): Promise<unknown> {
   return request('/api/queue/create', { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Service Timer
+// ---------------------------------------------------------------------------
+
+export interface ServiceTimerStatus {
+  hasServiceTimer: boolean
+  serviceTimeMinutes: number
+  gracePeriodMinutes: number
+  totalAllowedMinutes: number
+  remainingSeconds: number
+  isTimerRunning: boolean
+  isAtFront: boolean
+  expiresAtEpochMillis: number
+}
+
+export async function fetchServiceTimerStatus(userId: string): Promise<ServiceTimerStatus> {
+  return request<ServiceTimerStatus>(`/api/queue/${userId}/service-timer`)
+}
+
+export async function startServiceTimer(userId: string): Promise<void> {
+  await request(`/api/queue/${userId}/service-timer/start`, { method: 'POST' })
 }
 
 // ---------------------------------------------------------------------------

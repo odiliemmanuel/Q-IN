@@ -121,7 +121,9 @@ function mapBackendQueue(backend: BackendQueue, index = 0, users?: BackendQueueU
     isFull: Boolean(backend.isFull),
     recurring: Boolean(backend.recurring),
     queueDate,
-    avgServiceMinutes: 6,
+    avgServiceMinutes: backend.serviceTimeMinutes ?? 6,
+    serviceTimeMinutes: backend.serviceTimeMinutes,
+    gracePeriodMinutes: backend.gracePeriodMinutes,
     joinCode: 'TOTP',
     createdAt: backend.createdAt ?? backend.createdDate ?? new Date().toISOString(),
     entries: (users ?? [])
@@ -151,6 +153,8 @@ interface QueueState extends PersistedData {
     capacity: number
     avgServiceMinutes: number
     recurring?: boolean
+    serviceTimeMinutes?: number
+    gracePeriodMinutes?: number
   }) => Promise<void>
   updateQueueCapacity: (queueId: string, capacity: number) => Promise<void>
   deleteQueue: (queueId: string) => Promise<void>
@@ -521,6 +525,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           maxCapacity: input.capacity,
           name: input.name,
           recurring: input.recurring,
+          serviceTimeMinutes: input.serviceTimeMinutes,
+          gracePeriodMinutes: input.gracePeriodMinutes,
         }) as any
         if (backend && backend.id) {
           created = mapBackendQueue(backend as BackendQueue, queues.length)
@@ -551,6 +557,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       recurring: Boolean(input.recurring),
       queueDate: todayISO(),
       avgServiceMinutes: input.avgServiceMinutes,
+      serviceTimeMinutes: input.serviceTimeMinutes,
+      gracePeriodMinutes: input.gracePeriodMinutes,
       joinCode: generateJoinCode(),
       entries: [],
       createdAt: new Date().toISOString(),

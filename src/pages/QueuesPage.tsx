@@ -31,6 +31,8 @@ export function QueuesPage() {
     name: '',
     capacity: '20',
     recurring: false,
+    serviceTimeMinutes: 5,
+    gracePeriodMinutes: 1,
   })
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -74,18 +76,22 @@ export function QueuesPage() {
     event.preventDefault()
     const name = form.name.trim() || 'General Queue'
     const capacity = Math.max(1, Number(form.capacity) || 20)
+    const serviceTimeMinutes = Math.max(1, Number(form.serviceTimeMinutes) || 5)
+    const gracePeriodMinutes = Math.max(0, Number(form.gracePeriodMinutes) || 1)
     setFormError(null)
     try {
       await addQueue({
         name,
         description: form.recurring ? 'Recurring daily queue' : 'Queue',
         capacity,
-        avgServiceMinutes: 6,
+        avgServiceMinutes: serviceTimeMinutes,
         recurring: form.recurring,
+        serviceTimeMinutes,
+        gracePeriodMinutes,
       })
       notify('Queue created')
       setModalOpen(false)
-      setForm({ name: '', capacity: '20', recurring: false })
+      setForm({ name: '', capacity: '20', recurring: false, serviceTimeMinutes: 5, gracePeriodMinutes: 1 })
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Failed to create queue')
     }
@@ -213,6 +219,26 @@ export function QueuesPage() {
             value={form.capacity}
             onChange={(event) => setForm({ ...form, capacity: event.target.value })}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Service time (minutes)"
+              name="queue-service-time"
+              type="number"
+              min={1}
+              max={120}
+              value={form.serviceTimeMinutes}
+              onChange={(event) => setForm({ ...form, serviceTimeMinutes: Number(event.target.value) || 5 })}
+            />
+            <Input
+              label="Grace period (minutes)"
+              name="queue-grace-period"
+              type="number"
+              min={0}
+              max={30}
+              value={form.gracePeriodMinutes}
+              onChange={(event) => setForm({ ...form, gracePeriodMinutes: Number(event.target.value) || 1 })}
+            />
+          </div>
           <label className="flex items-center gap-2.5 text-[13px] text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"

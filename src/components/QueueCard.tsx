@@ -4,6 +4,7 @@ import type { Queue } from '../lib/types'
 import { cn } from '../lib/utils'
 import { Badge, Button, Card, Progress } from './ui'
 import { IconClock, IconUsers } from './icons'
+import { ServiceTimerDisplay } from './queue/ServiceTimerDisplay'
 
 const QueueCardComponent = ({
   queue,
@@ -17,6 +18,7 @@ const QueueCardComponent = ({
   className?: string
 }) => {
   const waiting = useMemo(() => queue.entries.filter((entry) => entry.status === 'WAITING').length, [queue.entries])
+  const hasServiceTimer = queue.serviceTimeMinutes && queue.serviceTimeMinutes > 0
 
   return (
     <Card className={cn('flex flex-col p-5 transition-shadow hover:shadow-md', className)}>
@@ -28,6 +30,11 @@ const QueueCardComponent = ({
             </h3>
             {joined ? <Badge tone="brand">Joined</Badge> : null}
             {queue.recurring ? <Badge tone="violet">Recurring daily</Badge> : null}
+            {hasServiceTimer && (
+              <Badge tone="warning">
+                ⏱ {queue.serviceTimeMinutes}min + {queue.gracePeriodMinutes ?? 0}min grace
+              </Badge>
+            )}
           </div>
           <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
             {cohortName}{queue.queueDate ? ` · ${queue.queueDate}` : ''}
@@ -49,6 +56,12 @@ const QueueCardComponent = ({
       </div>
 
       <Progress value={waiting} max={queue.capacity} className="mt-3" tone={queue.isOpen ? 'brand' : 'warning'} />
+
+      {joined && hasServiceTimer && (
+        <div className="mt-3">
+          <ServiceTimerDisplay userId="current" queueId={queue.id} />
+        </div>
+      )}
 
       <div className="mt-4 flex gap-2">
         <Link to={`/app/queues/${queue.id}`} className="flex-1">
