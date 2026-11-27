@@ -538,6 +538,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     if (loadTokens()) {
       try {
         const backend = await createQueueOnBackend({
+          queueId: uid('queue'),
           maxCapacity: input.capacity,
           name: input.name,
           recurring: input.recurring,
