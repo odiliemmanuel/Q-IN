@@ -117,10 +117,19 @@ async function requestOnce<T>(path: string, options: RequestOptions, token: stri
     envelope = { success: response.ok, message: response.statusText || 'Request failed', data: null }
   }
 
+  // Handle responses that don't use the standard { success, message, data } envelope
+  // (e.g., /api/queue/all returns { queues, message, numberOfQueues } directly).
+  if (envelope.success === undefined) {
+    envelope.success = response.ok
+  }
+
   if (!response.ok || !envelope.success) {
     throw new ApiError(envelope.message || `Request failed (${response.status})`, response.status)
   }
-  return { data: envelope.data as T, envelope }
+
+  // If there's no `data` field, the entire response body is the data.
+  const data = (envelope.data !== undefined ? envelope.data : envelope) as T
+  return { data, envelope }
 }
 
 /** Authenticated request with a single automatic refresh-token retry on 401. */
@@ -188,7 +197,7 @@ export interface BackendLoginResponse {
 export interface BackendRegisterResponse {
   userId: string
   message: string
-  isSuccessFull: boolean
+  successFull: boolean
 }
 
 export type Gender = 'MALE' | 'FEMALE'
@@ -196,12 +205,12 @@ export type Gender = 'MALE' | 'FEMALE'
 export interface RegisterPayload {
   firstName: string
   lastName: string
-  userName: string
-  /** Exactly 6 digits. */
+  userName?: string | null
+  /** Exactly 4 digits. */
   pin: string
   email: string
-  phoneNumber?: string
-  whatsappNumber?: string
+  phoneNumber?: string | null
+  whatsappNumber?: string | null
   gender: Gender
   cohortId: string
 }
@@ -427,6 +436,10 @@ export interface BackendQueue {
   createdDate?: string
   queueNumber?: number | null
   closureDate?: string | null
+  /** Service time in minutes (new API). */
+  serviceTimeMinutes?: number
+  /** Grace period in minutes (new API). */
+  gracePeriodMinutes?: number
 }
 
 export interface BackendQueueUser {
@@ -458,7 +471,15 @@ export interface BackendQueueEntry {
 }
 
 export async function fetchAllQueues(): Promise<{ queues: BackendQueue[]; message: string; numberOfQueues: number | null }> {
-  return request('/api/queue/all')
+  const result = await request<unknown>('/api/queue/all')
+  // Handle both wrapped ({ queues, ... }) and direct array responses.
+  if (Array.isArray(result)) {
+    return { queues: result as BackendQueue[], message: '', numberOfQueues: result.length }
+  }
+  if (result && typeof result === 'object' && 'queues' in result) {
+    return result as { queues: BackendQueue[]; message: string; numberOfQueues: number | null }
+  }
+  return { queues: [], message: '', numberOfQueues: null }
 }
 
 /** Join using the current 6-digit access code (TOTP, rotates every 30s). */
@@ -489,10 +510,37 @@ export interface BackendCreateQueuePayload {
   maxCapacity: number
   name?: string
   recurring?: boolean
+  /** Service time in minutes (new API). */
+  serviceTimeMinutes?: number
+  /** Grace period in minutes (new API). */
+  gracePeriodMinutes?: number
 }
 
 export async function createQueueOnBackend(payload: BackendCreateQueuePayload): Promise<unknown> {
   return request('/api/queue/create', { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Service Timer
+// ---------------------------------------------------------------------------
+
+export interface ServiceTimerStatus {
+  hasServiceTimer: boolean
+  serviceTimeMinutes: number
+  gracePeriodMinutes: number
+  totalAllowedMinutes: number
+  remainingSeconds: number
+  isTimerRunning: boolean
+  isAtFront: boolean
+  expiresAtEpochMillis: number
+}
+
+export async function fetchServiceTimerStatus(userId: string): Promise<ServiceTimerStatus> {
+  return request<ServiceTimerStatus>(`/api/queue/${userId}/service-timer`)
+}
+
+export async function startServiceTimer(userId: string): Promise<void> {
+  await request(`/api/queue/${userId}/service-timer/start`, { method: 'POST' })
 }
 
 // ---------------------------------------------------------------------------

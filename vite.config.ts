@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true,
+    host: '0.0.0.0',
     proxy: {
       '/api': {
         target: process.env.VITE_API_URL ?? 'https://queueni.onrender.com',
@@ -24,5 +24,19 @@ export default defineConfig({
   },
   preview: {
     port: 4173,
+    host: '0.0.0.0',
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          store: ['zustand'],
+          qrcode: ['qrcode'],
+          websocket: ['@stomp/stompjs', 'sockjs-client'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
   },
 })

@@ -108,18 +108,22 @@ function mapBackendUserToEntry(user: BackendQueueUser): QueueEntry {
 /** Map a backend queue to the frontend Queue shape. */
 function mapBackendQueue(backend: BackendQueue, index = 0, users?: BackendQueueUser[]): Queue {
   const name = backend.name?.trim() || `Queue ${index + 1}`
-  const queueDate = backend.queueDate ?? (backend.createdAt ? backend.createdAt.slice(0, 10) : null)
+  // Normalize queueDate to date-only (YYYY-MM-DD) to match todayISO() comparisons.
+  const rawDate = backend.queueDate ?? (backend.createdAt ? backend.createdAt.slice(0, 10) : null)
+  const queueDate = rawDate ? rawDate.slice(0, 10) : null
   return {
     id: backend.id,
     cohortId: 'cohort_live',
     name,
     description: backend.recurring ? `Recurring queue${queueDate ? ` · ${queueDate}` : ''}` : 'Queueni live queue — join with the rotating access code.',
     capacity: backend.maxCapacity,
-    isOpen: backend.isOpen,
-    isFull: backend.isFull,
+    isOpen: Boolean(backend.isOpen),
+    isFull: Boolean(backend.isFull),
     recurring: Boolean(backend.recurring),
     queueDate,
-    avgServiceMinutes: 6,
+    avgServiceMinutes: backend.serviceTimeMinutes ?? 6,
+    serviceTimeMinutes: backend.serviceTimeMinutes,
+    gracePeriodMinutes: backend.gracePeriodMinutes,
     joinCode: 'TOTP',
     createdAt: backend.createdAt ?? backend.createdDate ?? new Date().toISOString(),
     entries: (users ?? [])
@@ -149,6 +153,8 @@ interface QueueState extends PersistedData {
     capacity: number
     avgServiceMinutes: number
     recurring?: boolean
+    serviceTimeMinutes?: number
+    gracePeriodMinutes?: number
   }) => Promise<void>
   updateQueueCapacity: (queueId: string, capacity: number) => Promise<void>
   deleteQueue: (queueId: string) => Promise<void>
@@ -205,7 +211,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   hydrateFromBackend: async () => {
     if (!loadTokens()) return
     try {
-      const { queues: backendQueues } = await fetchAllQueues()
+      const result = await fetchAllQueues()
+      const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
       const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
 
       const backendCohorts = await fetchCohorts().catch(() => [])
@@ -217,14 +224,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         createdAt: new Date().toISOString(),
       }))
 
-      const current = get().queues
-      const merged = [...mapped]
-      for (const local of current) {
-        if (!merged.some((item) => item.id === local.id)) merged.push(local)
-      }
-      set({ queues: merged, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
-      persist({ cohorts: get().cohorts, queues: merged, activeTicket: get().activeTicket })
-    } catch {
+      set({ queues: mapped, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
+      persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
+    } catch (error) {
+      console.error('[hydrateFromBackend] Failed to sync queues:', error)
       // Backend unreachable — keep whatever local state exists.
     }
   },
@@ -522,6 +525,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           maxCapacity: input.capacity,
           name: input.name,
           recurring: input.recurring,
+          serviceTimeMinutes: input.serviceTimeMinutes,
+          gracePeriodMinutes: input.gracePeriodMinutes,
         }) as any
         if (backend && backend.id) {
           created = mapBackendQueue(backend as BackendQueue, queues.length)
@@ -529,8 +534,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       } catch (error) {
         if (error instanceof ApiError && error.status >= 400) {
           useNotificationStore.getState().push('Backend queue not created', error.message)
+          // Don't create a local fallback — the backend rejected the request.
+          // Only fall back to local creation on network errors (backend unreachable).
+          return
         }
       }
+    }
+
+    // If backend rejected the request, don't create a local queue.
+    if (!created && loadTokens()) {
+      return
     }
 
     const cohortId = input.cohortId ?? cohorts[0]?.id ?? `cohort_${uid()}`
@@ -544,6 +557,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       recurring: Boolean(input.recurring),
       queueDate: todayISO(),
       avgServiceMinutes: input.avgServiceMinutes,
+      serviceTimeMinutes: input.serviceTimeMinutes,
+      gracePeriodMinutes: input.gracePeriodMinutes,
       joinCode: generateJoinCode(),
       entries: [],
       createdAt: new Date().toISOString(),
@@ -553,7 +568,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     nextQueue.cohortId = cohortId
 
     const nextQueues: Queue[] = [nextQueue, ...queues]
-    persist({ cohorts, queues: nextQueues, activeTicket })
+    persist({ cohorts: cohorts, queues: nextQueues, activeTicket })
     set({ queues: nextQueues })
   },
 

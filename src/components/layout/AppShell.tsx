@@ -5,9 +5,15 @@ import { Topbar } from './Topbar'
 import { useQueueStore } from '../../stores/queue'
 
 export function AppShell() {
-  // Pull queues and members from the backend when a session is active.
   useEffect(() => {
-    void useQueueStore.getState().hydrateFromBackend()
+    const hydrate = () => void useQueueStore.getState().hydrateFromBackend()
+    hydrate()
+    window.addEventListener('focus', hydrate)
+    const id = window.setInterval(hydrate, 30000)
+    return () => {
+      window.removeEventListener('focus', hydrate)
+      window.clearInterval(id)
+    }
   }, [])
 
   return (

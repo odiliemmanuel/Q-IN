@@ -32,6 +32,7 @@ import {
   type JoinResult,
 } from '../stores/queue'
 import { useUiStore } from '../stores/ui'
+import { ServiceTimerDisplay } from '../components/queue/ServiceTimerDisplay'
 
 export function QueueDetailPage() {
   const { queueId } = useParams<{ queueId: string }>()
@@ -91,6 +92,7 @@ export function QueueDetailPage() {
   const isMine = activeTicket?.queueId === queue.id
   const position = activeTicket && isMine ? positionOf(queue, activeTicket.entryId) : 0
   const eta = waitMinutes(position, queue.avgServiceMinutes)
+  const hasServiceTimer = queue.serviceTimeMinutes && queue.serviceTimeMinutes > 0
 
   // Only admins and people who have already joined (via code or QR) can see
   // who is on the line — members must join first.
@@ -184,224 +186,236 @@ export function QueueDetailPage() {
       {canViewLine ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatBox label="In line" value={waiting.length} icon={<IconUsers className="h-4 w-4" />} />
-        <StatBox label="Capacity" value={queue.capacity} icon={<IconQueue className="h-4 w-4" />} />
-        <StatBox label="Avg service" value={`${queue.avgServiceMinutes} min`} icon={<IconClock className="h-4 w-4" />} />
-        <StatBox
-          label={isMine ? 'Your wait' : 'Longest wait'}
-          value={isMine ? formatWait(eta) : formatWait(waitMinutes(waiting.length, queue.avgServiceMinutes))}
-          icon={<IconCheckCircle className="h-4 w-4" />}
-          highlight={isMine}
-        />
-      </div>
-
-      {isMine ? (
-        <Card className="border-brand-200 bg-linear-to-r from-brand-50 to-violet-50 p-5 dark:border-brand-500/25 dark:from-brand-500/10 dark:to-violet-500/10">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[12px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
-                You are in this queue
-              </p>
-              <p className="mt-1 font-display text-2xl font-semibold text-slate-900 dark:text-white">
-                Position #{position} · about {formatWait(eta)} left
-              </p>
-            </div>
-            <div className="w-full sm:max-w-xs">
-              <div className="mb-1.5 flex justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                <span>Progress</span>
-                <span>
-                  {position} of {waiting.length}
-                </span>
-              </div>
-              <Progress value={Math.max(1, waiting.length - position + 1)} max={Math.max(1, waiting.length)} />
-            </div>
+            <StatBox label="In line" value={waiting.length} icon={<IconUsers className="h-4 w-4" />} />
+            <StatBox label="Capacity" value={queue.capacity} icon={<IconQueue className="h-4 w-4" />} />
+            <StatBox label="Avg service" value={`${queue.avgServiceMinutes} min`} icon={<IconClock className="h-4 w-4" />} />
+            <StatBox
+              label={isMine ? 'Your wait' : 'Longest wait'}
+              value={isMine ? formatWait(eta) : formatWait(waitMinutes(waiting.length, queue.avgServiceMinutes))}
+              icon={<IconCheckCircle className="h-4 w-4" />}
+              highlight={isMine}
+            />
           </div>
-        </Card>
-      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="Live line"
-            description={`${waiting.length} waiting · updates as people are served`}
-            action={
-              isAdmin ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    callNext(queue.id)
-                    notify(waiting[0] ? `${waiting[0].name} was called.` : 'No one is waiting.', waiting[0] ? 'success' : 'info')
-                  }}
-                  disabled={!waiting.length}
-                >
-                  Call next
-                </Button>
-              ) : null
-            }
-          />
-
-          <div className="mt-4">
-            {waiting.length === 0 ? (
-              <div className="px-5 pb-5">
-                <EmptyState
-                  icon={<IconCheckCircle className="h-5 w-5" />}
-                  title="The line is empty"
-                  description="Nobody is waiting right now."
-                />
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                {waiting.map((entry, index) => (
-                  <li key={entry.id} className="flex items-center gap-3 px-5 py-3.5">
-                    <span
-                      className={cn(
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-bold',
-                        index === 0
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-                      )}
-                    >
-                      {index + 1}
-                    </span>
-                    <Avatar name={entry.name} src={entry.avatar} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13.5px] font-medium text-slate-900 dark:text-white">
-                        {entry.name}
-                        {activeTicket?.entryId === entry.id ? (
-                          <span className="ml-2 text-[11px] font-semibold text-brand-600 dark:text-brand-400">You</span>
-                        ) : null}
-                      </p>
-                      <p className="text-[11.5px] text-slate-500 dark:text-slate-400">
-                        Joined {formatTime(entry.joinedAt)} · {timeAgo(entry.joinedAt)}
-                      </p>
-                    </div>
-                    {index === 0 ? (
-                      <Badge tone="success" className="hidden sm:inline-flex">
-                        Next up
-                      </Badge>
-                    ) : null}
-                    {isAdmin ? (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`Skip ${entry.name}`}
-                          onClick={() => {
-                            skipEntry(queue.id, entry.id)
-                            notify(`${entry.name} was skipped.`, 'info')
-                          }}
-                        >
-                          Skip
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Serve ${entry.name}`}
-                          onClick={() => {
-                            serveEntry(queue.id, entry.id)
-                            notify(`${entry.name} was called.`)
-                          }}
-                        >
-                          Serve
-                        </Button>
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-
-        <aside className="space-y-6">
-          <Card>
-            <CardHeader title="Queue details" />
-            <CardBody className="space-y-3 pt-4 text-[13px]">
-              <DetailRow label="Cohort" value={cohort?.name ?? '—'} />
-              <DetailRow label="Capacity" value={`${queue.capacity} people`} />
-              <DetailRow label="Avg service" value={`${queue.avgServiceMinutes} minutes`} />
-              <DetailRow label="Created" value={new Date(queue.createdAt).toLocaleDateString()} />
-              <DetailRow label="Status" value={queue.isOpen ? 'Accepting entries' : 'Closed'} />
-              <div>
-                <div className="mb-1.5 flex justify-between text-[11.5px] text-slate-500 dark:text-slate-400">
-                  <span>Capacity used</span>
-                  <span>{Math.round((waiting.length / Math.max(1, queue.capacity)) * 100)}%</span>
-                </div>
-                <Progress value={waiting.length} max={queue.capacity} />
-              </div>
-            </CardBody>
-          </Card>
-
-          {isAdmin ? (
-            <Card>
-              <CardHeader title="Admin actions" description="Manage this line." />
-              <CardBody className="space-y-2 pt-4">
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  onClick={() => callNext(queue.id)}
-                  disabled={!waiting.length}
-                >
-                  Call next person
-                </Button>
-                <Button className="w-full" variant="outline" onClick={() => void openQr()}>
-                  Show entry QR
-                </Button>
-                <Button
-                  className="w-full"
-                  variant={queue.isOpen ? 'danger' : 'success'}
-                  onClick={() => {
-                    toggleQueue(queue.id)
-                    notify(queue.isOpen ? 'Queue closed' : 'Queue opened', 'info')
-                  }}
-                >
-                  {queue.isOpen ? 'Close queue' : 'Reopen queue'}
-                </Button>
-                <Button className="w-full" variant="ghost" onClick={() => navigate('/app/admin')}>
-                  Open admin console
-                </Button>
-              </CardBody>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader title="How it works" />
-              <CardBody className="space-y-3 pt-4">
-                {[
-                  'Join the line and keep this page open.',
-                  'Your position updates as people ahead are served.',
-                  'We notify you when you are close to the front.',
-                ].map((text, index) => (
-                  <div key={text} className="flex gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                      {index + 1}
-                    </span>
-                    <p className="text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-400">{text}</p>
-                  </div>
-                ))}
-              </CardBody>
+          {isMine && hasServiceTimer && (
+            <Card className="border-brand-200 bg-linear-to-r from-brand-50 to-violet-50 p-5 dark:border-brand-500/25 dark:from-brand-500/10 dark:to-violet-500/10">
+              <ServiceTimerDisplay userId={user?.id ?? ''} queueId={queue.id} />
             </Card>
           )}
 
-          {history.length ? (
-            <Card>
-              <CardHeader title="Recently served" description={`${history.length} completed`} />
-              <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
-                {history.slice(-5).reverse().map((entry) => (
-                  <li key={entry.id} className="flex items-center gap-2.5 px-5 py-2.5">
-                    <Avatar name={entry.name} src={entry.avatar} size="xs" />
-                    <span className="flex-1 truncate text-[12.5px] text-slate-600 dark:text-slate-400">
-                      {entry.name}
+          {isMine ? (
+            <Card className="border-brand-200 bg-linear-to-r from-brand-50 to-violet-50 p-5 dark:border-brand-500/25 dark:from-brand-500/10 dark:to-violet-500/10">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+                    You are in this queue
+                  </p>
+                  <p className="mt-1 font-display text-2xl font-semibold text-slate-900 dark:text-white">
+                    Position #{position} · about {formatWait(eta)} left
+                  </p>
+                </div>
+                <div className="w-full sm:max-w-xs">
+                  <div className="mb-1.5 flex justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span>Progress</span>
+                    <span>
+                      {position} of {waiting.length}
                     </span>
-                    <Badge tone={entry.status === 'SERVED' ? 'success' : 'warning'}>
-                      {entry.status === 'SERVED' ? 'Served' : 'Skipped'}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                  <Progress value={Math.max(1, waiting.length - position + 1)} max={Math.max(1, waiting.length)} />
+                </div>
+              </div>
             </Card>
           ) : null}
-        </aside>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader
+                title="Live line"
+                description={`${waiting.length} waiting · updates as people are served`}
+                action={
+                  isAdmin ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        callNext(queue.id)
+                        notify(waiting[0] ? `${waiting[0].name} was called.` : 'No one is waiting.', waiting[0] ? 'success' : 'info')
+                      }}
+                      disabled={!waiting.length}
+                    >
+                      Call next
+                    </Button>
+                  ) : null
+                }
+              />
+
+              <div className="mt-4">
+                {waiting.length === 0 ? (
+                  <div className="px-5 pb-5">
+                    <EmptyState
+                      icon={<IconCheckCircle className="h-5 w-5" />}
+                      title="The line is empty"
+                      description="Nobody is waiting right now."
+                    />
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {waiting.map((entry, index) => (
+                      <li key={entry.id} className="flex items-center gap-3 px-5 py-3.5">
+                        <span
+                          className={cn(
+                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-bold',
+                            index === 0
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                          )}
+                        >
+                          {index + 1}
+                        </span>
+                        <Avatar name={entry.name} src={entry.avatar} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13.5px] font-medium text-slate-900 dark:text-white">
+                            {entry.name}
+                            {activeTicket?.entryId === entry.id ? (
+                              <span className="ml-2 text-[11px] font-semibold text-brand-600 dark:text-brand-400">You</span>
+                            ) : null}
+                          </p>
+                          <p className="text-[11.5px] text-slate-500 dark:text-slate-400">
+                            Joined {formatTime(entry.joinedAt)} · {timeAgo(entry.joinedAt)}
+                          </p>
+                        </div>
+                        {index === 0 ? (
+                          <Badge tone="success" className="hidden sm:inline-flex">
+                            Next up
+                          </Badge>
+                        ) : null}
+                        {isAdmin ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={`Skip ${entry.name}`}
+                              onClick={() => {
+                                skipEntry(queue.id, entry.id)
+                                notify(`${entry.name} was skipped.`, 'info')
+                              }}
+                            >
+                              Skip
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label={`Serve ${entry.name}`}
+                              onClick={() => {
+                                serveEntry(queue.id, entry.id)
+                                notify(`${entry.name} was called.`)
+                              }}
+                            >
+                              Serve
+                            </Button>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </Card>
+
+            <aside className="space-y-6">
+              <Card>
+                <CardHeader title="Queue details" />
+                <CardBody className="space-y-3 pt-4 text-[13px]">
+                  <DetailRow label="Cohort" value={cohort?.name ?? '—'} />
+                  <DetailRow label="Capacity" value={`${queue.capacity} people`} />
+                  <DetailRow label="Avg service" value={`${queue.avgServiceMinutes} minutes`} />
+                  {hasServiceTimer && (
+                    <>
+                      <DetailRow label="Service time" value={`${queue.serviceTimeMinutes} minutes`} />
+                      <DetailRow label="Grace period" value={`${queue.gracePeriodMinutes ?? 0} minutes`} />
+                    </>
+                  )}
+                  <DetailRow label="Created" value={new Date(queue.createdAt).toLocaleDateString()} />
+                  <DetailRow label="Status" value={queue.isOpen ? 'Accepting entries' : 'Closed'} />
+                  <div>
+                    <div className="mb-1.5 flex justify-between text-[11.5px] text-slate-500 dark:text-slate-400">
+                      <span>Capacity used</span>
+                      <span>{Math.round((waiting.length / Math.max(1, queue.capacity)) * 100)}%</span>
+                    </div>
+                    <Progress value={waiting.length} max={queue.capacity} />
+                  </div>
+                </CardBody>
+              </Card>
+
+              {isAdmin ? (
+                <Card>
+                  <CardHeader title="Admin actions" description="Manage this line." />
+                  <CardBody className="space-y-2 pt-4">
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => callNext(queue.id)}
+                      disabled={!waiting.length}
+                    >
+                      Call next person
+                    </Button>
+                    <Button className="w-full" variant="outline" onClick={() => void openQr()}>
+                      Show entry QR
+                    </Button>
+                    <Button
+                      className="w-full"
+                      variant={queue.isOpen ? 'danger' : 'success'}
+                      onClick={() => {
+                        toggleQueue(queue.id)
+                        notify(queue.isOpen ? 'Queue closed' : 'Queue opened', 'info')
+                      }}
+                    >
+                      {queue.isOpen ? 'Close queue' : 'Reopen queue'}
+                    </Button>
+                    <Button className="w-full" variant="ghost" onClick={() => navigate('/app/admin')}>
+                      Open admin console
+                    </Button>
+                  </CardBody>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader title="How it works" />
+                  <CardBody className="space-y-3 pt-4">
+                    {[
+                      'Join the line and keep this page open.',
+                      'Your position updates as people ahead are served.',
+                      'We notify you when you are close to the front.',
+                    ].map((text, index) => (
+                      <div key={text} className="flex gap-3">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                          {index + 1}
+                        </span>
+                        <p className="text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-400">{text}</p>
+                      </div>
+                    ))}
+                  </CardBody>
+                </Card>
+              )}
+
+              {history.length ? (
+                <Card>
+                  <CardHeader title="Recently served" description={`${history.length} completed`} />
+                  <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+                    {history.slice(-5).reverse().map((entry) => (
+                      <li key={entry.id} className="flex items-center gap-2.5 px-5 py-2.5">
+                        <Avatar name={entry.name} src={entry.avatar} size="xs" />
+                        <span className="flex-1 truncate text-[12.5px] text-slate-600 dark:text-slate-400">
+                          {entry.name}
+                        </span>
+                        <Badge tone={entry.status === 'SERVED' ? 'success' : 'warning'}>
+                          {entry.status === 'SERVED' ? 'Served' : 'Skipped'}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              ) : null}
+            </aside>
           </div>
         </>
       ) : (

@@ -184,6 +184,7 @@ export function DashboardPage() {
                   queue={queue}
                   cohortName={cohortById.get(queue.cohortId ?? '')?.name ?? 'Cohort'}
                   joined={activeTicket?.queueId === queue.id}
+                  userId={user?.id}
                 />
               ))}
             </div>

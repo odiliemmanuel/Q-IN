@@ -47,6 +47,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
 export function AdminPage() {
   const [tab, setTab] = useState<TabId>('queues')
   const queues = useQueueStore((state) => state.queues)
+  const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
   const cohorts = useQueueStore((state) => state.cohorts)
   const toggleQueue = useQueueStore((state) => state.toggleQueue)
   const closeQueue = useQueueStore((state) => state.closeQueue)
@@ -69,6 +70,14 @@ export function AdminPage() {
   const [capacityValue, setCapacityValue] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteQueueId, setDeleteQueueId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const hydrate = () => void hydrateFromBackend()
+    hydrate()
+    const id = window.setInterval(hydrate, 15000)
+    window.addEventListener('focus', hydrate)
+    return () => { window.clearInterval(id); window.removeEventListener('focus', hydrate) }
+  }, [hydrateFromBackend])
 
   useEffect(() => {
     webhooksApi.getAll()
