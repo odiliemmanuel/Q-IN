@@ -524,6 +524,7 @@ export async function fetchTotpCode(queueId: string): Promise<{ code: string; ex
 }
 
 export interface BackendCreateQueuePayload {
+  queueId: string
   maxCapacity: number
   name?: string
   recurring?: boolean
