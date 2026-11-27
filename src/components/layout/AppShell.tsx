@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { useQueueStore } from '../../stores/queue'
 
 export function AppShell() {
+  const location = useLocation()
+  const isAdmin = location.pathname.startsWith('/app/admin') || location.pathname.startsWith('/app/cohorts')
+
   useEffect(() => {
-    const hydrate = () => void useQueueStore.getState().hydrateFromBackend()
+    const hydrate = () => void useQueueStore.getState()[isAdmin ? 'hydrateFromBackend' : 'hydrateTodayQueues']()
     hydrate()
     window.addEventListener('focus', hydrate)
     const id = window.setInterval(hydrate, 30000)
@@ -14,7 +17,7 @@ export function AppShell() {
       window.removeEventListener('focus', hydrate)
       window.clearInterval(id)
     }
-  }, [])
+  }, [isAdmin])
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
