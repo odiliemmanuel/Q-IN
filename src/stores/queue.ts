@@ -597,14 +597,25 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
   deleteQueue: async (queueId) => {
     const { queues, cohorts, activeTicket } = get()
+    const queue = queues.find((q) => q.id === queueId)
+    const queueName = queue?.name ?? 'Queue'
+
     if (loadTokens()) {
       try {
         const { queuesApi } = await import('../api')
         await queuesApi.deleteQueue(queueId)
+        useNotificationStore.getState().push('Queue deleted', `${queueName} was removed.`, 'SYSTEM')
       } catch (error) {
-        console.warn('Failed to delete queue on backend:', error)
+        const message = error instanceof Error ? error.message : 'Failed to delete queue on backend.'
+        useNotificationStore.getState().push('Delete failed', message, 'SYSTEM')
+        console.error('Failed to delete queue on backend:', error)
+        return
       }
+    } else {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to delete queues.', 'SYSTEM')
+      return
     }
+
     const nextQueues = queues.filter((item) => item.id !== queueId)
     const nextTicket = activeTicket?.queueId === queueId ? null : activeTicket
     persist({ cohorts, queues: nextQueues, activeTicket: nextTicket })
