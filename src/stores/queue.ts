@@ -449,7 +449,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     set({ queues: nextQueues, activeTicket: nextTicket })
   },
 
-  toggleQueue: async (queueId) => {
+toggleQueue: async (queueId) => {
     const { queues, cohorts, activeTicket } = get()
     const current = queues.find((q) => q.id === queueId)
     if (!current) return
@@ -460,16 +460,17 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     if (wasOpen && loadTokens()) {
       try {
         await closeQueueOnBackend(queueId)
-      } catch {
-        // fall through to local toggle
+      } catch (error) {
+        useNotificationStore.getState().push('Close failed', error instanceof Error ? error.message : 'Failed to close queue', 'SYSTEM')
+        return
       }
     }
 
-    // Opening: create a new backend queue instance (which is open by default)
+    // Opening: create a new backend queue instance (which is open by default per API spec)
     if (!wasOpen && loadTokens()) {
       try {
         const backend = await createQueueOnBackend({
-          queueId: uid('queue'),
+          queueId: uid('queue'), // Backend may ignore this and generate its own
           maxCapacity: current.capacity,
           name: current.name,
           recurring: current.recurring,
@@ -482,73 +483,64 @@ export const useQueueStore = create<QueueState>((set, get) => ({
           const nextQueues = queues.map((item) => item.id === queueId ? created : item)
           persist({ cohorts, queues: nextQueues, activeTicket })
           set({ queues: nextQueues })
-          useNotificationStore
-            .getState()
-            .push('Queue opened', `${created.name} is now accepting people.`, 'SYSTEM')
+          useNotificationStore.getState().push('Queue opened', `${created.name} is now accepting people.`, 'SYSTEM')
           return
         }
       } catch (error) {
-        console.error('Failed to open queue on backend:', error)
-        // fall through to local toggle if backend fails
+        useNotificationStore.getState().push('Open failed', error instanceof Error ? error.message : 'Failed to open queue', 'SYSTEM')
+        return
       }
     }
 
-    // Local toggle fallback (if no auth or backend failed)
-    const nextQueues = queues.map((item) =>
-      item.id === queueId ? { ...item, isOpen: !item.isOpen } : item,
-    )
-    persist({ cohorts, queues: nextQueues, activeTicket })
-    set({ queues: nextQueues })
-    const queue = nextQueues.find((item) => item.id === queueId)
-    if (queue) {
-      useNotificationStore
-        .getState()
-        .push(
-          queue.isOpen ? 'Queue opened' : 'Queue closed',
-          `${queue.name} is now ${queue.isOpen ? 'accepting people' : 'closed to new entries'}.` +
-            (queue.isOpen ? ' (local only — syncs on next refresh)' : ''),
-          'SYSTEM',
-        )
+    // No auth - cannot toggle
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to toggle queues', 'SYSTEM')
+      return
     }
   },
 
   closeQueue: async (queueId) => {
     const { queues, cohorts, activeTicket } = get()
-    if (loadTokens()) {
-      try {
-        await closeQueueOnBackend(queueId)
-      } catch {
-        // local fallback
-      }
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to close queues', 'SYSTEM')
+      return
+    }
+    try {
+      await closeQueueOnBackend(queueId)
+    } catch (error) {
+      useNotificationStore.getState().push('Close failed', error instanceof Error ? error.message : 'Failed to close queue', 'SYSTEM')
+      return
     }
     const nextQueues = queues.map((item) => (item.id === queueId ? { ...item, isOpen: false } : item))
     persist({ cohorts, queues: nextQueues, activeTicket })
     set({ queues: nextQueues })
   },
 
-  addCohort: async (name, description) => {
+addCohort: async (name, description) => {
     const { cohorts, queues, activeTicket } = get()
-    const newCohort = {
-      id: uid('cohort'),
-      name,
-      description,
-      memberCount: 0,
-      createdAt: new Date().toISOString(),
-      isActive: true,
+
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to create cohorts', 'SYSTEM')
+      return
     }
 
-    if (loadTokens()) {
-      try {
-        const backendCohort = await cohortsApi.createCohort({ name, description })
-        newCohort.id = backendCohort.id
-      } catch {
-        // Backend creation failed, but keep local cohort
+    try {
+      const backendCohort = await cohortsApi.createCohort({ name, description })
+      const newCohort: Cohort = {
+        id: backendCohort.id,
+        name: backendCohort.name,
+        description,
+        memberCount: 0,
+        createdAt: new Date().toISOString(),
+        isActive: true,
       }
+      const nextCohorts: Cohort[] = [newCohort, ...cohorts]
+      persist({ cohorts: nextCohorts, queues, activeTicket })
+      set({ cohorts: nextCohorts })
+      useNotificationStore.getState().push('Cohort created', `${newCohort.name} created successfully.`, 'SYSTEM')
+    } catch (error) {
+      useNotificationStore.getState().push('Creation failed', error instanceof Error ? error.message : 'Failed to create cohort', 'SYSTEM')
     }
-
-    const nextCohorts: Cohort[] = [newCohort, ...cohorts]
-    persist({ cohorts: nextCohorts, queues, activeTicket })
-    set({ cohorts: nextCohorts })
   },
 
   disableCohort: async (id: string) => {
@@ -556,12 +548,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const current = cohorts.find((c) => c.id === id)
     if (!current || !current.isActive) return
 
-    if (loadTokens()) {
-      try {
-        await cohortsApi.disableCohort(id)
-      } catch {
-        // fall through to local update
-      }
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to disable cohorts', 'SYSTEM')
+      return
+    }
+
+    try {
+      await cohortsApi.disableCohort(id)
+    } catch (error) {
+      useNotificationStore.getState().push('Disable failed', error instanceof Error ? error.message : 'Failed to disable cohort', 'SYSTEM')
+      return
     }
 
     const nextCohorts = cohorts.map((c) => (c.id === id ? { ...c, isActive: false } : c))
@@ -575,12 +571,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const current = cohorts.find((c) => c.id === id)
     if (!current || current.isActive) return
 
-    if (loadTokens()) {
-      try {
-        await cohortsApi.enableCohort(id)
-      } catch {
-        // fall through to local update
-      }
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to enable cohorts', 'SYSTEM')
+      return
+    }
+
+    try {
+      await cohortsApi.enableCohort(id)
+    } catch (error) {
+      useNotificationStore.getState().push('Enable failed', error instanceof Error ? error.message : 'Failed to enable cohort', 'SYSTEM')
+      return
     }
 
     const nextCohorts = cohorts.map((c) => (c.id === id ? { ...c, isActive: true } : c))
@@ -652,14 +652,20 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
   updateQueueCapacity: async (queueId, capacity) => {
     const { queues, cohorts, activeTicket } = get()
-    if (loadTokens()) {
-      try {
-        const { queuesApi } = await import('../api')
-        await queuesApi.updateCapacity(capacity)
-      } catch (error) {
-        console.warn('Failed to update queue capacity on backend:', error)
-      }
+
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to update queue capacity', 'SYSTEM')
+      return
     }
+
+    try {
+      const { queuesApi } = await import('../api')
+      await queuesApi.updateCapacity(capacity)
+    } catch (error) {
+      useNotificationStore.getState().push('Update failed', error instanceof Error ? error.message : 'Failed to update capacity', 'SYSTEM')
+      return
+    }
+
     const nextQueues = queues.map((item) => (item.id === queueId ? { ...item, capacity } : item))
     persist({ cohorts, queues: nextQueues, activeTicket })
     set({ queues: nextQueues })
