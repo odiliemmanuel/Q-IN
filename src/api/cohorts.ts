@@ -40,4 +40,15 @@ export const cohortsApi = {
   async deleteCohort(id: string): Promise<void> {
     await api.delete<void>(API_ENDPOINTS.cohorts.delete(id))
   },
+
+  // Admin-specific cohort functions
+  async getAdminCohorts(): Promise<Cohort[]> {
+    const response = await api.get<ApiResponse<CohortResponse[]>>(API_ENDPOINTS.cohorts.adminList)
+    return response.data.map((c) => ({ id: c.id, name: c.name, isActive: true }))
+  },
+
+  async getAdminCohortUsers(id: string): Promise<any[]> {
+    const response = await api.get<ApiResponse<any[]>>(API_ENDPOINTS.cohorts.adminUsers(id))
+    return response.data
+  },
 }

@@ -47,6 +47,10 @@ export const queuesApi = {
     return api.get<{ queues: Queue[]; numberOfQueues: number | null }>(API_ENDPOINTS.queues.all)
   },
 
+  async getTodayQueues(): Promise<{ queues: Queue[]; numberOfQueues: number | null }> {
+    return api.get<{ queues: Queue[]; numberOfQueues: number | null }>(API_ENDPOINTS.queues.today)
+  },
+
   async getQueueUsers(queueId: string): Promise<QueueUser[]> {
     return api.get<QueueUser[]>(API_ENDPOINTS.queues.getUsers(queueId))
   },
@@ -75,5 +79,17 @@ export const queuesApi = {
 
   async deleteQueue(queueId: string): Promise<void> {
     return api.delete<void>(API_ENDPOINTS.queues.delete(queueId))
+  },
+
+  async getTotpCode(queueId: string): Promise<{ code: string; expiresIn: number }> {
+    return api.get<{ code: string; expiresIn: number }>(API_ENDPOINTS.queues.totpCode(queueId))
+  },
+
+  async getServiceTimerStatus(userId: string): Promise<any> {
+    return api.get<any>(API_ENDPOINTS.queues.serviceTimer(userId))
+  },
+
+  async startServiceTimer(userId: string): Promise<void> {
+    return api.post<void>(API_ENDPOINTS.queues.startServiceTimer(userId))
   },
 }
