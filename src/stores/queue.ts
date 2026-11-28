@@ -219,7 +219,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     try {
       const result = await fetchAllQueues()
       const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
-      const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
+      
+      // Deduplicate by ID in case backend returns duplicates
+      const seen = new Set<string>()
+      const uniqueQueues = backendQueues.filter((q) => {
+        if (seen.has(q.id)) return false
+        seen.add(q.id)
+        return true
+      })
+      
+      const mapped = uniqueQueues.map((queue, index) => mapBackendQueue(queue, index))
 
       const backendCohorts = await fetchCohorts().catch(() => [])
       const mappedCohorts: Cohort[] = backendCohorts.map((c) => ({
@@ -247,7 +256,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     try {
       const result = await fetchTodayQueues()
       const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
-      const mapped = backendQueues.map((queue, index) => mapBackendQueue(queue, index))
+      
+      // Deduplicate by ID
+      const seen = new Set<string>()
+      const uniqueQueues = backendQueues.filter((q) => {
+        if (seen.has(q.id)) return false
+        seen.add(q.id)
+        return true
+      })
+      
+      const mapped = uniqueQueues.map((queue, index) => mapBackendQueue(queue, index))
 
       set({ queues: mapped })
       persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
@@ -436,8 +454,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const current = queues.find((q) => q.id === queueId)
     if (!current) return
 
+    const wasOpen = current.isOpen
+
     // Closing via backend endpoint for today's instance (spec)
-    if (current.isOpen && loadTokens()) {
+    if (wasOpen && loadTokens()) {
       try {
         await closeQueueOnBackend(queueId)
       } catch {
@@ -456,7 +476,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         .getState()
         .push(
           queue.isOpen ? 'Queue opened' : 'Queue closed',
-          `${queue.name} is now ${queue.isOpen ? 'accepting people' : 'closed to new entries'}.`,
+          `${queue.name} is now ${queue.isOpen ? 'accepting people' : 'closed to new entries'}.` +
+            (queue.isOpen ? ' (local only — syncs on next refresh)' : ''),
           'SYSTEM',
         )
     }
@@ -629,11 +650,11 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         const message = error instanceof Error ? error.message : 'Failed to delete queue on backend.'
         useNotificationStore.getState().push('Delete failed', message, 'SYSTEM')
         console.error('Failed to delete queue on backend:', error)
-        return
+        throw error
       }
     } else {
       useNotificationStore.getState().push('Not authenticated', 'Please sign in to delete queues.', 'SYSTEM')
-      return
+      throw new Error('Not authenticated')
     }
 
     const nextQueues = queues.filter((item) => item.id !== queueId)

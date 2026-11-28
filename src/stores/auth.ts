@@ -4,6 +4,7 @@ import { loadJSON, saveJSON } from '../lib/persist'
 import { terminateSession } from '../session/sessionTermination'
 import { tokenStorage } from '../auth/tokenStorage'
 import { authApi, type LoginResponse, type RegisterResponse } from '../api'
+import { ApiError } from '../api/client'
 
 const USER_KEY = 'qin:user'
 
@@ -83,7 +84,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await get().fetchUserProfile()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed. Please try again.'
+      let message = 'Login failed. Please try again.'
+      if (error instanceof ApiError) {
+        const data = error.data as { message?: string } | undefined
+        if (error.status === 401) {
+          message = data?.message ?? 'Invalid email/username or PIN.'
+        } else if (error.status === 403) {
+          message = 'Account not verified. Please check your email.'
+        } else if (error.status === 429) {
+          message = 'Too many attempts. Please wait a moment.'
+        } else if (error.status >= 500) {
+          message = 'Server error. Please try again later.'
+        } else {
+          message = data?.message ?? error.message
+        }
+      } else if (error instanceof Error) {
+        message = error.message
+      }
       set({ loading: false, error: message })
       throw error
     }
