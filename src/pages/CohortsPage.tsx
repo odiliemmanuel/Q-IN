@@ -12,6 +12,7 @@ export function CohortsPage() {
   const queues = useQueueStore((state) => state.queues)
   const addCohort = useQueueStore((state) => state.addCohort)
   const disableCohort = useQueueStore((state) => state.disableCohort)
+  const enableCohort = useQueueStore((state) => state.enableCohort)
   const deleteCohort = useQueueStore((state) => state.deleteCohort)
   const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
   const user = useAuthStore((state) => state.user)
@@ -202,6 +203,15 @@ export function CohortsPage() {
                         title={`Disable ${cohort.name}`}
                       >
                         <IconAlert className="h-4 w-4" />
+                      </Button>
+                    ) : !cohort.isActive && canManage ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void enableCohort(cohort.id)}
+                        title={`Enable ${cohort.name}`}
+                      >
+                        <IconActivity className="h-4 w-4" />
                       </Button>
                     ) : null}
                     {canManage ? (

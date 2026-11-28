@@ -29,6 +29,10 @@ export const cohortsApi = {
     return { id: response.data.id, name: response.data.name, isActive: true }
   },
 
+  async enableCohort(id: string): Promise<void> {
+    await api.patch<void>(API_ENDPOINTS.cohorts.enable(id))
+  },
+
   async disableCohort(id: string): Promise<void> {
     await api.patch<void>(API_ENDPOINTS.cohorts.disable(id))
   },

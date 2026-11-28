@@ -146,6 +146,7 @@ interface QueueState extends PersistedData {
   skipEntry: (queueId: string, entryId: string) => void
   toggleQueue: (queueId: string) => Promise<void>
   addCohort: (name: string, description: string) => void
+  enableCohort: (id: string) => Promise<void>
   disableCohort: (id: string) => Promise<void>
   deleteCohort: (id: string) => Promise<void>
   addQueue: (input: {
@@ -517,6 +518,25 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     persist({ cohorts: nextCohorts, queues, activeTicket })
     set({ cohorts: nextCohorts })
     useNotificationStore.getState().push('Cohort disabled', `${current.name} is now inactive.`)
+  },
+
+  enableCohort: async (id: string) => {
+    const { cohorts, queues, activeTicket } = get()
+    const current = cohorts.find((c) => c.id === id)
+    if (!current || current.isActive) return
+
+    if (loadTokens()) {
+      try {
+        await cohortsApi.enableCohort(id)
+      } catch {
+        // fall through to local update
+      }
+    }
+
+    const nextCohorts = cohorts.map((c) => (c.id === id ? { ...c, isActive: true } : c))
+    persist({ cohorts: nextCohorts, queues, activeTicket })
+    set({ cohorts: nextCohorts })
+    useNotificationStore.getState().push('Cohort enabled', `${current.name} is now active.`)
   },
 
   deleteCohort: async (id: string) => {
