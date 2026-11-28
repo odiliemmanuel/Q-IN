@@ -10,14 +10,19 @@ if (!container) {
   throw new Error('Root element #root was not found in index.html')
 }
 
+console.log('Mounting React app...')
+
 try {
-  createRoot(container).render(
+  const root = createRoot(container)
+  console.log('Root created, rendering...')
+  root.render(
     <React.StrictMode>
       <ErrorBoundary fallback={<div style={{ padding: '20px', fontFamily: 'system-ui', color: 'red' }}><h1>App crashed</h1><p>Please check console for details.</p></div>}>
         <App />
       </ErrorBoundary>
     </React.StrictMode>,
   )
+  console.log('App rendered successfully')
 } catch (error) {
   console.error('Failed to mount React app:', error)
   container.innerHTML = `
