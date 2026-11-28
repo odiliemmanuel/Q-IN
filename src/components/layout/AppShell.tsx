@@ -6,7 +6,9 @@ import { useQueueStore } from '../../stores/queue'
 
 export function AppShell() {
   const location = useLocation()
-  const isAdmin = location.pathname.startsWith('/app/admin') || location.pathname.startsWith('/app/cohorts')
+  const isAdmin = location.pathname.startsWith('/app/admin') || 
+                  location.pathname.startsWith('/app/cohorts') || 
+                  location.pathname.startsWith('/app/super-admin')
 
   useEffect(() => {
     const hydrate = () => void useQueueStore.getState()[isAdmin ? 'hydrateFromBackend' : 'hydrateTodayQueues']()
