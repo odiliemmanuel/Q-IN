@@ -182,65 +182,72 @@ export function CohortsPage() {
                   <Progress value={waiting} max={Math.max(10, cohort.memberCount / 4)} />
                 </div>
 
-                <div className="mt-4 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 dark:text-slate-400">
-                    <IconQueue className="h-3.5 w-3.5" />
-                    {openQueues.length} accepting entries
+<div className="mt-4 flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 dark:text-slate-400">
+                      <IconQueue className="h-3.5 w-3.5" />
+                      {openQueues.length} accepting entries
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        tone={cohort.isActive ? 'brand' : 'danger'}
+                        className="capitalize"
+                      >
+                        {cohort.isActive ? 'Active' : 'Disabled'}
+                      </Badge>
+                      {cohort.isActive && canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void disableCohort(cohort.id)}
+                          title={`Disable ${cohort.name}`}
+                        >
+                          <IconAlert className="h-4 w-4" />
+                        </Button>
+                      ) : !cohort.isActive && canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void enableCohort(cohort.id)}
+                          title={`Enable ${cohort.name}`}
+                        >
+                          <IconActivity className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                      {canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void deleteCohort(cohort.id)}
+                          title={`Delete ${cohort.name}`}
+                        >
+                          <IconTrash className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      tone={cohort.isActive ? 'brand' : 'danger'}
-                      className="capitalize"
-                    >
-                      {cohort.isActive ? 'Active' : 'Disabled'}
-                    </Badge>
-                    {cohort.isActive && canManage ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void disableCohort(cohort.id)}
-                        title={`Disable ${cohort.name}`}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/app/queues?cohort=${cohort.id}`}
+                        className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
                       >
-                        <IconAlert className="h-4 w-4" />
-                      </Button>
-                    ) : !cohort.isActive && canManage ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void enableCohort(cohort.id)}
-                        title={`Enable ${cohort.name}`}
+                        <IconArrowRight className="h-3.5 w-3.5" />
+                        View queues
+                      </Link>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => viewMembers(cohort)}
+                        className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                       >
-                        <IconActivity className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                    {canManage ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void deleteCohort(cohort.id)}
-                        title={`Delete ${cohort.name}`}
-                      >
-                        <IconTrash className="h-4 w-4" />
-                      </Button>
-                    ) : null}
+                        <IconUsers className="h-3.5 w-3.5" />
+                        View members
+                      </button>
+                    </div>
                   </div>
-
-                  <Link
-                    to={`/app/queues?cohort=${cohort.id}`}
-                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
-                  >
-                    View queues
-                    <IconArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => viewMembers(cohort)}
-                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                  >
-                    <IconUsers className="h-3.5 w-3.5" />
-                    View members
-                  </button>
                 </div>
               </Card>
             )

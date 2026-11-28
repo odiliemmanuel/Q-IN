@@ -24,6 +24,7 @@ export const API_ENDPOINTS = {
   queues: {
     create: '/api/queue/create',
     all: '/api/queue/all',
+    today: '/api/queue/today',
     getUsers: (queueId: string) => `/api/queue/${queueId}/users`,
     getStats: (queueId: string) => `/api/queue/${queueId}/stats`,
     enter: (userId: string) => `/api/queue/${userId}/enter`,
@@ -31,6 +32,9 @@ export const API_ENDPOINTS = {
     close: (queueId: string) => `/api/queue/${queueId}/close`,
     updateCapacity: (capacity: number) => `/api/queue/${capacity}/update/capacity`,
     delete: (queueId: string) => `/api/queue/${queueId}/delete`,
+    totpCode: (queueId: string) => `/api/queue/${queueId}/totp-code`,
+    serviceTimer: (userId: string) => `/api/queue/${userId}/service-timer`,
+    startServiceTimer: (userId: string) => `/api/queue/${userId}/service-timer/start`,
   },
   notifications: {
     list: '/api/v1/notifications',
@@ -45,9 +49,13 @@ export const API_ENDPOINTS = {
     enable: (id: string) => `/api/v1/admin/${id}/enable`,
     disable: (id: string) => `/api/v1/admin/${id}/disable`,
     delete: (id: string) => `/api/v1/admin/${id}`,
+    adminList: '/api/v1/admin/cohorts',
+    adminUsers: (id: string) => `/api/v1/admin/cohorts/${id}/users`,
   },
   admin: {
     login: '/api/v1/admin/login',
+    activateUser: (id: string) => `/api/v1/admin/users/${id}/activate`,
+    suspendUser: (id: string) => `/api/v1/admin/users/${id}/suspend`,
   },
   superAdmin: {
     login: '/api/v1/super-admin/login',
