@@ -65,7 +65,7 @@ self.addEventListener('fetch', (event) => {
 
   // Static assets: cache first, then network
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request)),
+    caches.match(request).then((cached) => cached || fetch(request).catch(() => cached)),
   )
 })
 
@@ -75,8 +75,8 @@ self.addEventListener('push', (event) => {
   const payload = event.data.json()
   const options = {
     body: payload.body || 'You have a new notification from Q-In.',
-    icon: '/icons/android-chrome-192x192.png',
-    badge: '/icons/android-chrome-192x192.png',
+    icon: '/icons/android-chrome-192x192.svg',
+    badge: '/icons/android-chrome-192x192.svg',
     tag: payload.tag || 'qin-notification',
     data: payload.data || {},
   }
