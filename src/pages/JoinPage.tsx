@@ -27,7 +27,7 @@ export function JoinPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
   const queues = useQueueStore((state) => state.queues)
-  const hydrateFromBackend = useQueueStore((state) => state.hydrateFromBackend)
+  const hydrateTodayQueues = useQueueStore((state) => state.hydrateTodayQueues)
   const notify = useUiStore((state) => state.notify)
 
   const [tab, setTab] = useState<'code' | 'scan'>('code')
@@ -43,7 +43,7 @@ export function JoinPage() {
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
 
-  useEffect(() => { void hydrateFromBackend() }, [hydrateFromBackend])
+  useEffect(() => { void hydrateTodayQueues() }, [hydrateTodayQueues])
 
   const joinable = useMemo(() => getJoinableQueues(queues), [queues])
   const needsSelection = joinable.length > 1 && !selectedQueueId

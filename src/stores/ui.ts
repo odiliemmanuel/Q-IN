@@ -31,6 +31,7 @@ function initialTheme(): Theme {
 }
 
 function applyTheme(theme: Theme) {
+  if (typeof document === 'undefined' || !document.documentElement) return
   const root = document.documentElement
   root.classList.toggle('dark', theme === 'dark')
   root.style.colorScheme = theme
@@ -42,7 +43,15 @@ function applyTheme(theme: Theme) {
 }
 
 const startTheme = initialTheme()
-applyTheme(startTheme)
+
+// Apply theme after DOM is ready
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => applyTheme(startTheme))
+  } else {
+    applyTheme(startTheme)
+  }
+}
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 

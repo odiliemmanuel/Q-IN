@@ -211,7 +211,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   hydrateFromBackend: async () => {
-    if (!loadTokens()) return
+    if (!loadTokens()) {
+      console.warn('[hydrateFromBackend] No auth tokens available')
+      return
+    }
     try {
       const result = await fetchAllQueues()
       const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
@@ -228,6 +231,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
       set({ queues: mapped, cohorts: mappedCohorts.length ? mappedCohorts : get().cohorts })
       persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
+      console.log('[hydrateFromBackend] Synced', mapped.length, 'queues')
     } catch (error) {
       console.error('[hydrateFromBackend] Failed to sync queues:', error)
       // Backend unreachable — keep whatever local state exists.
@@ -235,7 +239,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   hydrateTodayQueues: async () => {
-    if (!loadTokens()) return
+    if (!loadTokens()) {
+      console.warn('[hydrateTodayQueues] No auth tokens available')
+      return
+    }
     try {
       const result = await fetchTodayQueues()
       const backendQueues = result?.queues ?? (Array.isArray(result) ? result : [])
@@ -243,6 +250,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
       set({ queues: mapped })
       persist({ cohorts: get().cohorts, queues: mapped, activeTicket: get().activeTicket })
+      console.log('[hydrateTodayQueues] Synced', mapped.length, "today's queues")
     } catch (error) {
       console.error('[hydrateTodayQueues] Failed to sync today queues:', error)
     }
