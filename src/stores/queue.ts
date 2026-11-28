@@ -465,6 +465,35 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       }
     }
 
+    // Opening: create a new backend queue instance (which is open by default)
+    if (!wasOpen && loadTokens()) {
+      try {
+        const backend = await createQueueOnBackend({
+          queueId: uid('queue'),
+          maxCapacity: current.capacity,
+          name: current.name,
+          recurring: current.recurring,
+          serviceTimeMinutes: current.serviceTimeMinutes,
+          gracePeriodMinutes: current.gracePeriodMinutes,
+        }) as any
+        if (backend && backend.id) {
+          // Replace the old queue with the new open one from backend
+          const created = mapBackendQueue(backend as BackendQueue, queues.length)
+          const nextQueues = queues.map((item) => item.id === queueId ? created : item)
+          persist({ cohorts, queues: nextQueues, activeTicket })
+          set({ queues: nextQueues })
+          useNotificationStore
+            .getState()
+            .push('Queue opened', `${created.name} is now accepting people.`, 'SYSTEM')
+          return
+        }
+      } catch (error) {
+        console.error('Failed to open queue on backend:', error)
+        // fall through to local toggle if backend fails
+      }
+    }
+
+    // Local toggle fallback (if no auth or backend failed)
     const nextQueues = queues.map((item) =>
       item.id === queueId ? { ...item, isOpen: !item.isOpen } : item,
     )
