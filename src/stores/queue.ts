@@ -629,11 +629,11 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         const message = error instanceof Error ? error.message : 'Failed to delete queue on backend.'
         useNotificationStore.getState().push('Delete failed', message, 'SYSTEM')
         console.error('Failed to delete queue on backend:', error)
-        return
+        throw error
       }
     } else {
       useNotificationStore.getState().push('Not authenticated', 'Please sign in to delete queues.', 'SYSTEM')
-      return
+      throw new Error('Not authenticated')
     }
 
     const nextQueues = queues.filter((item) => item.id !== queueId)
