@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ActiveTicket, Cohort, Queue, QueueEntry } from '../lib/types'
 import { loadJSON, debouncedSaveJSON } from '../lib/persist'
-import { uid, generateJoinCode, normalizeJoinCode } from '../lib/utils'
+import { uid, normalizeJoinCode } from '../lib/utils'
 import { useNotificationStore } from './notifications'
 import {
   ApiError,
@@ -535,58 +535,41 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const { cohorts, queues, activeTicket } = get()
     let created: Queue | null = null
 
-    if (loadTokens()) {
-      try {
-        const backend = await createQueueOnBackend({
-          queueId: uid('queue'),
-          maxCapacity: input.capacity,
-          name: input.name,
-          recurring: input.recurring,
-          serviceTimeMinutes: input.serviceTimeMinutes,
-          gracePeriodMinutes: input.gracePeriodMinutes,
-        }) as any
-        if (backend && backend.id) {
-          created = mapBackendQueue(backend as BackendQueue, queues.length)
-        }
-      } catch (error) {
-        if (error instanceof ApiError && error.status >= 400) {
-          useNotificationStore.getState().push('Backend queue not created', error.message)
-          // Don't create a local fallback — the backend rejected the request.
-          // Only fall back to local creation on network errors (backend unreachable).
-          return
-        }
-      }
-    }
-
-    // If backend rejected the request, don't create a local queue.
-    if (!created && loadTokens()) {
+    if (!loadTokens()) {
+      useNotificationStore.getState().push('Authentication required', 'Please sign in to create a queue.')
       return
     }
 
-    const cohortId = input.cohortId ?? cohorts[0]?.id ?? `cohort_${uid()}`
-    const nextQueue: Queue = created ?? {
-      id: uid('queue'),
-      name: input.name,
-      cohortId,
-      description: input.description,
-      capacity: input.capacity,
-      isOpen: true,
-      recurring: Boolean(input.recurring),
-      queueDate: todayISO(),
-      avgServiceMinutes: input.avgServiceMinutes,
-      serviceTimeMinutes: input.serviceTimeMinutes,
-      gracePeriodMinutes: input.gracePeriodMinutes,
-      joinCode: generateJoinCode(),
-      entries: [],
-      createdAt: new Date().toISOString(),
+    try {
+      const backend = await createQueueOnBackend({
+        queueId: uid('queue'),
+        maxCapacity: input.capacity,
+        name: input.name,
+        recurring: input.recurring,
+        serviceTimeMinutes: input.serviceTimeMinutes,
+        gracePeriodMinutes: input.gracePeriodMinutes,
+      }) as any
+      if (backend && backend.id) {
+        created = mapBackendQueue(backend as BackendQueue, queues.length)
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status >= 400) {
+        useNotificationStore.getState().push('Backend queue not created', error.message)
+        return
+      }
+      useNotificationStore.getState().push('Queue creation failed', 'Network error. Please try again.')
+      return
     }
-    nextQueue.description = input.description || nextQueue.description
-    nextQueue.avgServiceMinutes = input.avgServiceMinutes
-    nextQueue.cohortId = cohortId
 
-    const nextQueues: Queue[] = [nextQueue, ...queues]
+    if (!created) {
+      useNotificationStore.getState().push('Queue creation failed', 'No queue returned from backend.')
+      return
+    }
+
+    const nextQueues: Queue[] = [created, ...queues]
     persist({ cohorts: cohorts, queues: nextQueues, activeTicket })
     set({ queues: nextQueues })
+    useNotificationStore.getState().push('Queue created', `${created.name} is now available.`)
   },
 
   updateQueueCapacity: async (queueId, capacity) => {

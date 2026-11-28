@@ -14,51 +14,36 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "/icons/android-chrome-192x192.png",
+      "src": "/icons/android-chrome-192x192.svg",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/android-chrome-512x512.png",
+      "src": "/icons/android-chrome-512x512.svg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/apple-touch-icon.png",
+      "src": "/icons/apple-touch-icon.svg",
       "sizes": "180x180",
-      "type": "image/png"
+      "type": "image/svg+xml"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshots/wide-1280x720.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Q-In dashboard showing queues and positions"
-    },
-    {
-      "src": "/screenshots/narrow-390x844.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Q-In mobile view showing queue positions"
-    }
-  ],
+  "screenshots": [],
   "shortcuts": [
     {
       "name": "Open dashboard",
       "short_name": "Dashboard",
       "url": "/app/dashboard",
-      "icons": [{ "src": "/icons/dashboard-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/dashboard-192.svg", "sizes": "192x192" }]
     },
     {
       "name": "Join queue",
       "short_name": "Join",
       "url": "/join",
-      "icons": [{ "src": "/icons/join-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/join-192.svg", "sizes": "192x192" }]
     }
   ],
   "related_applications": [],
