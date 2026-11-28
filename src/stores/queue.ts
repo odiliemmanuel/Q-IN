@@ -146,6 +146,7 @@ interface QueueState extends PersistedData {
   skipEntry: (queueId: string, entryId: string) => void
   toggleQueue: (queueId: string) => Promise<void>
   addCohort: (name: string, description: string) => void
+  enableCohort: (id: string) => Promise<void>
   disableCohort: (id: string) => Promise<void>
   deleteCohort: (id: string) => Promise<void>
   addQueue: (input: {
@@ -519,6 +520,25 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     useNotificationStore.getState().push('Cohort disabled', `${current.name} is now inactive.`)
   },
 
+  enableCohort: async (id: string) => {
+    const { cohorts, queues, activeTicket } = get()
+    const current = cohorts.find((c) => c.id === id)
+    if (!current || current.isActive) return
+
+    if (loadTokens()) {
+      try {
+        await cohortsApi.enableCohort(id)
+      } catch {
+        // fall through to local update
+      }
+    }
+
+    const nextCohorts = cohorts.map((c) => (c.id === id ? { ...c, isActive: true } : c))
+    persist({ cohorts: nextCohorts, queues, activeTicket })
+    set({ cohorts: nextCohorts })
+    useNotificationStore.getState().push('Cohort enabled', `${current.name} is now active.`)
+  },
+
   deleteCohort: async (id: string) => {
     const { cohorts, queues, activeTicket } = get()
     const current = cohorts.find((c) => c.id === id)
@@ -597,14 +617,25 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
   deleteQueue: async (queueId) => {
     const { queues, cohorts, activeTicket } = get()
+    const queue = queues.find((q) => q.id === queueId)
+    const queueName = queue?.name ?? 'Queue'
+
     if (loadTokens()) {
       try {
         const { queuesApi } = await import('../api')
         await queuesApi.deleteQueue(queueId)
+        useNotificationStore.getState().push('Queue deleted', `${queueName} was removed.`, 'SYSTEM')
       } catch (error) {
-        console.warn('Failed to delete queue on backend:', error)
+        const message = error instanceof Error ? error.message : 'Failed to delete queue on backend.'
+        useNotificationStore.getState().push('Delete failed', message, 'SYSTEM')
+        console.error('Failed to delete queue on backend:', error)
+        return
       }
+    } else {
+      useNotificationStore.getState().push('Not authenticated', 'Please sign in to delete queues.', 'SYSTEM')
+      return
     }
+
     const nextQueues = queues.filter((item) => item.id !== queueId)
     const nextTicket = activeTicket?.queueId === queueId ? null : activeTicket
     persist({ cohorts, queues: nextQueues, activeTicket: nextTicket })

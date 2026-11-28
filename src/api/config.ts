@@ -42,6 +42,7 @@ export const API_ENDPOINTS = {
   cohorts: {
     list: '/api/v1/cohorts',
     create: '/api/v1/admin',
+    enable: (id: string) => `/api/v1/admin/${id}/enable`,
     disable: (id: string) => `/api/v1/admin/${id}/disable`,
     delete: (id: string) => `/api/v1/admin/${id}`,
   },
